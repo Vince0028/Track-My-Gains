@@ -25,6 +25,7 @@ const App = () => {
     const [sessions, setSessions] = useState([]);
     const [weeklyPlan, setWeeklyPlan] = useState(WEEKLY_DEFAULT_PLAN);
     const [isDarkMode, setIsDarkMode] = useState(true);
+    const [units, setUnits] = useState('kg');
     const [modal, setModal] = useState({ show: false, title: '', message: '', onConfirm: () => { } });
 
     // Initialize Session
@@ -239,6 +240,9 @@ const App = () => {
                     isDarkMode={isDarkMode}
                     toggleTheme={toggleTheme}
                     confirmAction={confirmAction}
+                    userEmail={session?.user?.email}
+                    units={units}
+                    toggleUnits={() => setUnits(u => u === 'kg' ? 'lbs' : 'kg')}
                     onClearData={async () => {
                         confirmAction("Sign Out?", "Are you sure you want to sign out?", async () => {
                             await supabase.auth.signOut();
