@@ -42,7 +42,7 @@ const Auth = () => {
         <div className="min-h-screen flex items-center justify-center bg-[var(--bg-primary)] p-4 animate-in fade-in duration-700">
             <div className="w-full max-w-md space-y-8">
                 <div className="text-center space-y-2">
-                    <h1 className="text-4xl font-bold tracking-tight">FitFlow</h1>
+                    <h1 className="text-4xl font-bold tracking-tight">TrackMyGains</h1>
                     <p className="text-[var(--text-secondary)]">Your personal growth journey starts here.</p>
                 </div>
 

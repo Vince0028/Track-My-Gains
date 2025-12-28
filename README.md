@@ -1,6 +1,6 @@
 <div align="center">
   <img src="https://img.icons8.com/fluency/96/lightning-bolt.png" alt="logo" width="80" />
-  <h1>FitFlow Pro</h1>
+  <h1>TrackMyGains</h1>
   
   <p>
     <b>Your Gym Bro & Intelligent Fitness Companion</b>
@@ -19,7 +19,7 @@
 
 ## 🚀 About The Project
 
-**FitFlow Pro** is a modern, dark-themed fitness tracker designed for serious athletes. It manages your weekly workout splits, tracks your progress, and provides instant, factual advice through a built-in **AI Gym Bro Coach**.
+**TrackMyGains** is a modern, dark-themed fitness tracker designed for serious athletes. It manages your weekly workout splits, tracks your progress, and provides instant, factual advice through a built-in **AI Gym Bro Coach**.
 
 Built with performance and aesthetics in mind, it features an "organic" UI design, real-time data syncing, and a strict no-nonsense AI persona.
 
@@ -94,5 +94,5 @@ Contributions are clear. Fork it, branch it, push it.
 ---
 
 <div align="center">
-  <b>FitFlow Pro - Est. 2024</b>
+  <b>TrackMyGains - Est. 2024</b>
 </div>

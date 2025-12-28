@@ -19,7 +19,7 @@ const Navigation = ({ currentScreen, onScreenChange, isDarkMode, toggleTheme }) 
                 <div className="bg-[var(--accent)] p-2 organic-shape rotate-[-2deg]">
                     <Zap size={20} className="text-[var(--bg-primary)]" />
                 </div>
-                <span className="text-xl font-bold tracking-tight text-[var(--text-primary)]">FitFlow</span>
+                <span className="text-xl font-bold tracking-tight text-[var(--text-primary)]">TrackMyGains</span>
             </div>
 
             <div className="hidden md:flex items-center gap-1">

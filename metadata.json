@@ -1,5 +1,5 @@
 {
-  "name": "FitFlow Pro",
+  "name": "TrackMyGains",
   "description": "A uniquely designed fitness tracker with an organic UI, recurring weekly schedules, and an integrated AI fitness coach to help you reach your goals.",
   "requestFramePermissions": [
     "microphone"

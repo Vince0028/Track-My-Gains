@@ -59,7 +59,7 @@ const Settings = ({ isDarkMode, toggleTheme, confirmAction, onClearData, onReset
                     icon: <FileText size={20} />,
                     action: () => setInfoModal({
                         title: 'Usage Policy',
-                        content: 'FitFlow is intended for personal fitness tracking. Consult a physician before starting any new exercise routine.'
+                        content: 'TrackMyGains is intended for personal fitness tracking. Consult a physician before starting any new exercise routine.'
                     })
                 },
             ]
@@ -76,7 +76,7 @@ const Settings = ({ isDarkMode, toggleTheme, confirmAction, onClearData, onReset
         <div className="p-4 md:p-8 max-w-4xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-500">
             <div>
                 <h1 className="text-3xl font-bold">Settings</h1>
-                <p className="text-[var(--text-secondary)]">Manage your local fitflow experience</p>
+                <p className="text-[var(--text-secondary)]">Manage your local trackmygains experience</p>
             </div>
 
             <div className="space-y-8 pb-12">
@@ -134,7 +134,7 @@ const Settings = ({ isDarkMode, toggleTheme, confirmAction, onClearData, onReset
                     <div className="text-center space-y-2 mt-8">
                         <p className="text-[10px] text-[var(--text-secondary)] font-bold uppercase tracking-widest opacity-50">Local Deployment v1.1.0</p>
                         <p className="text-[10px] text-[var(--text-secondary)] leading-relaxed px-4">
-                            FitFlow Pro now syncs with the secure backend.
+                            TrackMyGains now syncs with the secure backend.
                         </p>
                     </div>
                 </div>
