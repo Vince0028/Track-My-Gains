@@ -43,6 +43,13 @@ const WeeklySchedule = ({ weeklyPlan, setWeeklyPlan, confirmAction }) => {
         });
     };
 
+    const updateDayTitle = (day, newTitle) => {
+        setWeeklyPlan(prev => ({
+            ...prev,
+            [day]: { ...prev[day], title: newTitle }
+        }));
+    };
+
     return (
         <div className="p-4 md:p-8 space-y-8 animate-in fade-in duration-500">
             <div className="flex justify-between items-end">
@@ -63,8 +70,17 @@ const WeeklySchedule = ({ weeklyPlan, setWeeklyPlan, confirmAction }) => {
                                     <div className="w-12 h-12 organic-shape bg-[var(--accent)]/10 border border-[var(--accent)]/30 flex items-center justify-center text-[var(--accent)] text-sm font-bold rotate-[-2deg]">
                                         {day.substring(0, 3)}
                                     </div>
-                                    <div>
-                                        <h3 className="text-lg font-bold">{plan.title}</h3>
+                                    <div className="flex-1">
+                                        {isEditing ? (
+                                            <input
+                                                className="text-lg font-bold bg-transparent border-b border-[var(--accent)] focus:outline-none w-full mb-1"
+                                                value={plan.title}
+                                                onChange={(e) => updateDayTitle(day, e.target.value)}
+                                                placeholder="Day Title (e.g. Chest Day)"
+                                            />
+                                        ) : (
+                                            <h3 className="text-lg font-bold">{plan.title}</h3>
+                                        )}
                                         <p className="text-xs text-[var(--text-secondary)]">{plan.exercises.length} activities planned</p>
                                     </div>
                                 </div>

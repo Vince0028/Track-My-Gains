@@ -1,8 +1,8 @@
 
 import React from 'react';
-import { User, Bell, Scale, Shield, FileText, LogOut, ChevronRight, Moon, Sun } from 'lucide-react';
+import { User, Scale, Shield, FileText, LogOut, ChevronRight, Moon, Sun, Trash2 } from 'lucide-react';
 
-const Settings = ({ isDarkMode, toggleTheme, confirmAction, onClearData }) => {
+const Settings = ({ isDarkMode, toggleTheme, confirmAction, onClearData, onResetData }) => {
     const sections = [
         {
             title: 'Profile',
@@ -81,14 +81,23 @@ const Settings = ({ isDarkMode, toggleTheme, confirmAction, onClearData }) => {
                     </div>
                 ))}
 
-                <div className="pt-8">
+                <div className="pt-8 space-y-4">
                     <button
                         onClick={onClearData}
-                        className="w-full flex items-center justify-center gap-2 p-6 bg-rose-500/10 border border-rose-500/30 organic-shape text-rose-500 font-bold hover:bg-rose-500 hover:text-white transition-organic shadow-sm"
+                        className="w-full flex items-center justify-center gap-2 p-6 bg-[var(--bg-secondary)] border border-[var(--border)] organic-shape text-[var(--text-primary)] font-bold hover:bg-[var(--bg-primary)] transition-organic shadow-sm"
                     >
                         <LogOut size={20} />
                         Sign Out
                     </button>
+
+                    <button
+                        onClick={onResetData}
+                        className="w-full flex items-center justify-center gap-2 p-4 bg-rose-500/10 border border-rose-500/30 organic-shape text-rose-500 font-bold hover:bg-rose-500 hover:text-white transition-organic text-sm"
+                    >
+                        <Trash2 size={16} />
+                        Reset Account Data
+                    </button>
+
                     <div className="text-center space-y-2 mt-8">
                         <p className="text-[10px] text-[var(--text-secondary)] font-bold uppercase tracking-widest opacity-50">Local Deployment v1.1.0</p>
                         <p className="text-[10px] text-[var(--text-secondary)] leading-relaxed px-4">

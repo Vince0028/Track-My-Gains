@@ -237,6 +237,28 @@ const App = () => {
                             await supabase.auth.signOut();
                         });
                     }}
+                    onResetData={async () => {
+                        confirmAction(
+                            "Reset All Data?",
+                            "This will permanently delete your workout history and custom schedule. This action cannot be undone.",
+                            async () => {
+                                if (session?.user?.id) {
+                                    await supabase.from('sessions').delete().eq('user_id', session.user.id);
+                                    await supabase.from('weekly_plan').delete().eq('user_id', session.user.id);
+
+                                    // Reset local state
+                                    setSessions([]);
+                                    setWeeklyPlan(WEEKLY_DEFAULT_PLAN);
+
+                                    // Re-initialize default plan in DB
+                                    await supabase.from('weekly_plan').insert({
+                                        user_id: session.user.id,
+                                        plan: WEEKLY_DEFAULT_PLAN
+                                    });
+                                }
+                            }
+                        );
+                    }}
                 />;
             default:
                 return <Dashboard sessions={sessions} todayWorkout={getTodayWorkout()} onUpdateSession={updateSession} />;
