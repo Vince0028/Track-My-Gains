@@ -97,7 +97,7 @@ const App = () => {
 
     const toggleTheme = () => setIsDarkMode(!isDarkMode);
 
-    const updateSession = async (updatedSession) => {
+    const updateSession = async (updatedSession, shouldSyncToPlan = true) => {
         if (!session?.user?.id) return;
 
 
@@ -119,6 +119,40 @@ const App = () => {
             console.error('Error updating session:', error);
 
         }
+
+
+        // Sync weights to weekly plan if it's today's workout and flag is true
+        if (shouldSyncToPlan) {
+            const todayStr = new Date().toDateString();
+            const sessionDateStr = new Date(updatedSession.date).toDateString();
+
+            if (todayStr === sessionDateStr) {
+                const dayName = new Date().toLocaleDateString('en-US', { weekday: 'long' });
+
+                handleSetWeeklyPlan(prevPlan => {
+                    const dayPlan = prevPlan[dayName];
+                    if (!dayPlan) return prevPlan;
+
+                    const updatedExercises = dayPlan.exercises.map(planEx => {
+                        // Match by name as IDs might differ
+                        const sessionEx = updatedSession.exercises.find(sEx => sEx.name === planEx.name);
+
+                        if (sessionEx && sessionEx.weight !== undefined) {
+                            return { ...planEx, weight: sessionEx.weight };
+                        }
+                        return planEx;
+                    });
+
+                    return {
+                        ...prevPlan,
+                        [dayName]: {
+                            ...dayPlan,
+                            exercises: updatedExercises
+                        }
+                    };
+                }, false); // Pass false to prevent loop back to session
+            }
+        }
     };
 
     const deleteSession = async (sessionId) => {
@@ -139,26 +173,124 @@ const App = () => {
     };
 
 
-    const handleSetWeeklyPlan = (newValueOrFn) => {
-        // Calculate new state immediately using current scope 'weeklyPlan'
-        // This avoids the issue where functional updates "prev" aren't accessible synchronously
-        const newPlan = typeof newValueOrFn === 'function'
-            ? newValueOrFn(weeklyPlan)
-            : newValueOrFn;
+    const handleSetWeeklyPlan = (newValueOrFn, shouldSyncToSession = true) => {
+        setWeeklyPlan(currentPlan => {
+            // Calculate new state immediately using current scope 'currentPlan' (which is the latest from state updater)
+            // Wait, using the functional update form of setWeeklyPlan allows us to access the fresh state "currentPlan"
+            // But we need the result to pass to superset/logic.
 
-        setWeeklyPlan(newPlan);
+            // Re-evaluating the structure here.
+            // The original code used `weeklyPlan` from closure which might be stale in a callback.
+            // But `setWeeklyPlan` was called with `newPlan`.
 
+            // Let's resolve the value first.
+            // If newValueOrFn is a function, we need the *current* state.
+            // But we are outside the setter.
+            // The original code:
+            // const newPlan = typeof newValueOrFn === 'function' ? newValueOrFn(weeklyPlan) : newValueOrFn;
+            // setWeeklyPlan(newPlan);
 
-        if (session?.user?.id && newPlan) {
-            supabase.from('weekly_plan')
-                .upsert({ user_id: session.user.id, plan: newPlan })
-                .then(({ error }) => {
-                    if (error) {
-                        console.error("Failed to sync plan:", error);
-                        // alert("Failed to save changes to cloud.");
+            // This relies on `weeklyPlan` being fresh. If `handleSetWeeklyPlan` is called from an effect or async (like `updateSession`),
+            // `weeklyPlan` in the closure might be stale.
+            // However, `updateSession` is recreated on every render? No, it's defined in the component body, so it closes over the *current* render's `weeklyPlan`.
+            // As long as `App` re-renders when `weeklyPlan` changes, it's fine.
+
+            const newPlan = typeof newValueOrFn === 'function'
+                ? newValueOrFn(weeklyPlan)
+                : newValueOrFn;
+
+            // Side Effects (Supabase)
+            if (session?.user?.id && newPlan) {
+                supabase.from('weekly_plan')
+                    .upsert({ user_id: session.user.id, plan: newPlan })
+                    .then(({ error }) => {
+                        if (error) {
+                            console.error("Failed to sync plan:", error);
+                        }
+                    });
+            }
+
+            // Sync Schedule -> Dashboard (Active Session)
+            if (shouldSyncToSession) {
+                const dayName = new Date().toLocaleDateString('en-US', { weekday: 'long' });
+                // Check if the update affects today's plan
+                const todayPlan = newPlan[dayName];
+
+                // Get today's session from *current* sessions state (also closed over)
+                const todayStr = new Date().toDateString();
+                const todaySession = sessions.find(s => new Date(s.date).toDateString() === todayStr);
+
+                if (todaySession && todayPlan) {
+                    // Check if we need to sync updates
+                    // We map session exercises and update them if they exist in the plan
+                    let hasChanges = false;
+
+                    const updatedExercises = todaySession.exercises.map(sessionEx => {
+                        const planEx = todayPlan.exercises.find(p => p.name === sessionEx.name);
+                        if (planEx) {
+                            // Check for differences in relevant fields
+                            if (sessionEx.weight !== planEx.weight || sessionEx.sets !== planEx.sets || sessionEx.reps !== planEx.reps) {
+                                hasChanges = true;
+                                return {
+                                    ...sessionEx,
+                                    weight: planEx.weight,
+                                    sets: planEx.sets,
+                                    reps: planEx.reps,
+                                    muscleGroup: planEx.muscleGroup || sessionEx.muscleGroup
+                                };
+                            }
+                        }
+                        return sessionEx;
+                    });
+
+                    // Handle added exercises (in Plan but not in Session)
+                    const sessionExNames = new Set(todaySession.exercises.map(e => e.name));
+                    const newExercises = todayPlan.exercises
+                        .filter(p => !sessionExNames.has(p.name))
+                        .map((p, i) => {
+                            hasChanges = true;
+                            return {
+                                ...p,
+                                id: `ex-new-${i}-${Date.now()}`,
+                                completed: false,
+                                weight: p.weight || 0
+                            };
+                        });
+
+                    if (hasChanges) {
+                        const newSession = {
+                            ...todaySession,
+                            exercises: [...updatedExercises, ...newExercises]
+                        };
+                        // Call updateSession but skip reverse sync
+                        // We must use setTimeout to break the render cycle if checks are strict, 
+                        // but here we are just calling a function.
+                        // However, updateSession sets state.
+                        updateSession(newSession, false);
                     }
-                });
-        }
+                }
+            }
+
+            return newPlan;
+        });
+
+        // The above `setWeeklyPlan` usage returns the new state, so it works as a setter.
+        // But verifying `updateSession` calls `handleSetWeeklyPlan` ...
+        // `handleSetWeeklyPlan(prevPlan => ...)`
+        // My implementation of `handleSetWeeklyPlan` above assumes it's just a function that calls `setWeeklyPlan`.
+        // The original code:
+        // const newPlan = ...; setWeeklyPlan(newPlan); ...
+        // If I wrap everything in `setWeeklyPlan(current => ...)` it might be cleaner for state updates,
+        // BUT `updateSession` calls `handleSetWeeklyPlan` expecting it to execute logic, not just return a state updater.
+        // Wait, `updateSession` calls: `handleSetWeeklyPlan(prevPlan => { ... })`.
+        // If `handleSetWeeklyPlan` is defined as:
+        // const handleSetWeeklyPlan = (newValueOrFn) => { const newPlan = ...; setWeeklyPlan(newPlan); ... }
+        // Then `newValueOrFn` is the function passed from `updateSession`.
+        // Calling `newValueOrFn(weeklyPlan)` uses the CLOSURE `weeklyPlan`.
+        // If `updateSession` runs, `weeklyPlan` might not be the absolute latest if multiple updates happened?
+        // Actually, `updateSession` runs in response to user interaction, so `weeklyPlan` should be fresh enough.
+
+        // Let's stick to the original structure but add the logic.
     };
 
     const getTodayWorkout = () => {

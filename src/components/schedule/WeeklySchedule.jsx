@@ -53,6 +53,10 @@ const WeeklySchedule = ({ weeklyPlan, setWeeklyPlan, confirmAction }) => {
                     name: value,
                     muscleGroup: getMuscleGroup(value)
                 };
+            } else if (['weight', 'sets', 'reps'].includes(field)) {
+                // Ensure no negative numbers
+                const validValue = Math.max(0, Number(value));
+                newExs[index] = { ...newExs[index], [field]: validValue };
             } else {
                 newExs[index] = { ...newExs[index], [field]: value };
             }

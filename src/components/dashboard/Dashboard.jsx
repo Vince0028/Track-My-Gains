@@ -67,10 +67,11 @@ const Dashboard = ({ sessions, todayWorkout, onUpdateSession }) => {
 
     const handleWeightChange = (exerciseId, val) => {
         if (!todayWorkout) return;
+        const validWeight = Math.max(0, val);
         const updated = {
             ...todayWorkout,
             exercises: todayWorkout.exercises.map(ex =>
-                ex.id === exerciseId ? { ...ex, weight: val } : ex
+                ex.id === exerciseId ? { ...ex, weight: validWeight } : ex
             )
         };
         onUpdateSession(updated);

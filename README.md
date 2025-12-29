@@ -23,6 +23,8 @@
 
 Built with performance and aesthetics in mind, it features an "organic" UI design, real-time data syncing, and a strict no-nonsense AI persona.
 
+I use this for my daily workouts.
+
 
 ---
 
