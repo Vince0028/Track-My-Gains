@@ -12,6 +12,17 @@ import {
     CircleDot
 } from 'lucide-react';
 
+// Muscle Icons
+import shoulderIcon from './assets/shoulder.png';
+import backIcon from './assets/back.png';
+import chestIcon from './assets/chest.png';
+import tricepIcon from './assets/tricep.png';
+import bicepIcon from './assets/bicep.png';
+import legsIcon from './assets/legs.png';
+import coreIcon from './assets/core.png';
+import forearmIcon from './assets/forearm.png';
+import stretchesIcon from './assets/stretches.png';
+
 export const WEEKLY_DEFAULT_PLAN = {
     'Monday': { title: 'Rest Day', exercises: [] },
     'Tuesday': { title: 'Rest Day', exercises: [] },
@@ -22,16 +33,22 @@ export const WEEKLY_DEFAULT_PLAN = {
     'Sunday': { title: 'Rest Day', exercises: [] }
 };
 
+const MuscleIcon = ({ src, alt }) => (
+    <div className="w-8 h-8 rounded-full bg-white p-1 shadow-sm flex items-center justify-center overflow-hidden border border-slate-100">
+        <img src={src} alt={alt} className="w-full h-full object-contain" />
+    </div>
+);
+
 export const MUSCLE_ICONS = {
-    Shoulder: <Zap size={18} className="text-amber-600 dark:text-amber-300" />,
-    Back: <Anchor size={18} className="text-blue-600 dark:text-blue-300" />,
-    Chest: <Heart size={18} className="text-rose-600 dark:text-rose-300" />,
-    Tricep: <Zap size={18} className="text-emerald-600 dark:text-emerald-300" />,
-    Bicep: <Dumbbell size={18} className="text-indigo-600 dark:text-indigo-300" />,
-    Legs: <CircleDot size={18} className="text-orange-600 dark:text-orange-300" />,
-    Core: <ShieldCheck size={18} className="text-purple-600 dark:text-purple-300" />,
-    Forearm: <Activity size={18} className="text-cyan-600 dark:text-cyan-300" />,
-    Stretches: <Target size={18} className="text-lime-600 dark:text-lime-300" />
+    Shoulder: <MuscleIcon src={shoulderIcon} alt="Shoulder" />,
+    Back: <MuscleIcon src={backIcon} alt="Back" />,
+    Chest: <MuscleIcon src={chestIcon} alt="Chest" />,
+    Tricep: <MuscleIcon src={tricepIcon} alt="Tricep" />,
+    Bicep: <MuscleIcon src={bicepIcon} alt="Bicep" />,
+    Legs: <MuscleIcon src={legsIcon} alt="Legs" />,
+    Core: <MuscleIcon src={coreIcon} alt="Core" />,
+    Forearm: <MuscleIcon src={forearmIcon} alt="Forearm" />,
+    Stretches: <MuscleIcon src={stretchesIcon} alt="Stretches" />
 };
 
 export const getMuscleGroup = (name) => {
