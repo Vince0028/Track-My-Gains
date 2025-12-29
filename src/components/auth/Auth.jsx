@@ -1,7 +1,40 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '../../services/supabaseClient';
 import { Mail, Lock, Loader2, ArrowRight, CheckCircle } from 'lucide-react';
+import authBg1 from '../../assets/auth_bg_1.png';
+import authBg2 from '../../assets/auth_bg_2.png';
+import authBg3 from '../../assets/auth_bg_3.png';
+
+const AuthBackground = () => {
+    const images = [authBg1, authBg2, authBg3];
+    const [currentIndex, setCurrentIndex] = useState(0);
+
+    useEffect(() => {
+        const interval = setInterval(() => {
+            setCurrentIndex((prev) => (prev + 1) % images.length);
+        }, 6000);
+        return () => clearInterval(interval);
+    }, []);
+
+    return (
+        <div className="absolute inset-0 z-0 overflow-hidden">
+            {images.map((img, index) => (
+                <div
+                    key={index}
+                    className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${index === currentIndex ? 'opacity-100' : 'opacity-0'}`}
+                >
+                    <img
+                        src={img}
+                        alt="Background"
+                        className={`w-full h-full object-cover transition-transform duration-[8000ms] ease-out ${index === currentIndex ? 'scale-110' : 'scale-100'}`}
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-black/30" />
+                </div>
+            ))}
+        </div>
+    );
+};
 
 const Auth = () => {
     const [loading, setLoading] = useState(false);
@@ -39,23 +72,25 @@ const Auth = () => {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-[var(--bg-primary)] p-4 animate-in fade-in duration-700">
-            <div className="w-full max-w-md space-y-8">
+        <div className="min-h-screen flex items-center justify-center relative bg-[var(--bg-primary)] overflow-hidden">
+            <AuthBackground />
+
+            <div className="w-full max-w-md space-y-8 relative z-10 p-4 animate-in fade-in slide-in-from-bottom-4 duration-700">
                 <div className="text-center space-y-2">
-                    <h1 className="text-4xl font-bold tracking-tight">TrackMyGains</h1>
-                    <p className="text-[var(--text-secondary)]">Your personal growth journey starts here.</p>
+                    <h1 className="text-5xl font-bold tracking-tight text-white drop-shadow-lg">TrackMyGains</h1>
+                    <p className="text-slate-200 drop-shadow-md text-lg">Your personal growth journey starts here.</p>
                 </div>
 
-                <div className="bg-[var(--bg-secondary)] p-8 organic-shape organic-border subtle-depth transition-all duration-300">
+                <div className="bg-black/40 backdrop-blur-xl p-8 organic-shape organic-border border-white/10 shadow-2xl transition-all duration-300">
                     {checkEmail ? (
                         <div className="text-center space-y-6 py-4 animate-in fade-in zoom-in-95 duration-300">
                             <div className="w-20 h-20 bg-[var(--accent)]/10 text-[var(--accent)] rounded-full flex items-center justify-center mx-auto mb-4 border border-[var(--accent)]/30">
                                 <CheckCircle size={40} />
                             </div>
                             <div className="space-y-2">
-                                <h3 className="text-xl font-bold">Check your email</h3>
-                                <p className="text-[var(--text-secondary)] text-sm px-4">
-                                    We've sent a confirmation link to <span className="font-bold text-[var(--text-primary)]">{email}</span>.
+                                <h3 className="text-xl font-bold text-white">Check your email</h3>
+                                <p className="text-slate-300 text-sm px-4">
+                                    We've sent a confirmation link to <span className="font-bold text-white">{email}</span>.
                                     Please check your inbox to activate your account.
                                 </p>
                             </div>
@@ -64,23 +99,23 @@ const Auth = () => {
                                     setCheckEmail(false);
                                     setIsLogin(true);
                                 }}
-                                className="w-full py-3 bg-[var(--bg-primary)] border border-[var(--border)] font-bold organic-shape hover:bg-[var(--bg-secondary)] transition-organic text-sm"
+                                className="w-full py-3 bg-white/10 border border-white/20 font-bold organic-shape hover:bg-white/20 transition-organic text-sm text-white"
                             >
                                 Back to Login
                             </button>
                         </div>
                     ) : (
                         <>
-                            <div className="flex gap-4 mb-8 p-1 bg-[var(--bg-primary)] rounded-xl border border-[var(--border)]">
+                            <div className="flex gap-4 mb-8 p-1 bg-black/20 rounded-xl border border-white/5">
                                 <button
                                     onClick={() => setIsLogin(true)}
-                                    className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all duration-300 ${isLogin ? 'bg-[var(--bg-secondary)] shadow-sm text-[var(--text-primary)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
+                                    className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all duration-300 ${isLogin ? 'bg-[var(--accent)] shadow-lg shadow-[var(--accent)]/20 text-white' : 'text-slate-400 hover:text-white'}`}
                                 >
                                     Log In
                                 </button>
                                 <button
                                     onClick={() => setIsLogin(false)}
-                                    className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all duration-300 ${!isLogin ? 'bg-[var(--bg-secondary)] shadow-sm text-[var(--accent)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
+                                    className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all duration-300 ${!isLogin ? 'bg-[var(--accent)] shadow-lg shadow-[var(--accent)]/20 text-white' : 'text-slate-400 hover:text-white'}`}
                                 >
                                     Sign Up
                                 </button>
@@ -88,9 +123,9 @@ const Auth = () => {
 
                             <form onSubmit={handleAuth} className="space-y-4">
                                 <div className="space-y-1">
-                                    <label className="text-xs font-bold text-[var(--text-secondary)] uppercase ml-1">Email</label>
+                                    <label className="text-xs font-bold text-slate-300 uppercase ml-1">Email</label>
                                     <div className="relative">
-                                        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)]">
+                                        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
                                             <Mail size={18} />
                                         </div>
                                         <input
@@ -98,16 +133,16 @@ const Auth = () => {
                                             required
                                             value={email}
                                             onChange={(e) => setEmail(e.target.value)}
-                                            className="w-full bg-[var(--bg-primary)] border border-[var(--border)] organic-shape pl-10 pr-4 py-3 focus:outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)] transition-organic"
+                                            className="w-full bg-black/20 border border-white/10 organic-shape pl-10 pr-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)] transition-organic"
                                             placeholder="hello@example.com"
                                         />
                                     </div>
                                 </div>
 
                                 <div className="space-y-1">
-                                    <label className="text-xs font-bold text-[var(--text-secondary)] uppercase ml-1">Password</label>
+                                    <label className="text-xs font-bold text-slate-300 uppercase ml-1">Password</label>
                                     <div className="relative">
-                                        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)]">
+                                        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
                                             <Lock size={18} />
                                         </div>
                                         <input
@@ -115,14 +150,14 @@ const Auth = () => {
                                             required
                                             value={password}
                                             onChange={(e) => setPassword(e.target.value)}
-                                            className="w-full bg-[var(--bg-primary)] border border-[var(--border)] organic-shape pl-10 pr-4 py-3 focus:outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)] transition-organic"
+                                            className="w-full bg-black/20 border border-white/10 organic-shape pl-10 pr-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)] transition-organic"
                                             placeholder="••••••••"
                                         />
                                     </div>
                                 </div>
 
                                 {error && (
-                                    <div className="p-3 bg-rose-500/10 border border-rose-500/20 text-rose-500 text-sm rounded-lg">
+                                    <div className="p-3 bg-rose-500/20 border border-rose-500/30 text-rose-300 text-sm rounded-lg backdrop-blur-sm">
                                         {error}
                                     </div>
                                 )}
@@ -130,7 +165,7 @@ const Auth = () => {
                                 <button
                                     type="submit"
                                     disabled={loading}
-                                    className="w-full py-3 bg-[var(--accent)] text-[var(--bg-primary)] font-bold organic-shape hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-2 group"
+                                    className="w-full py-3 bg-[var(--accent)] text-white font-bold organic-shape hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-2 group shadow-lg shadow-[var(--accent)]/20"
                                 >
                                     {loading ? <Loader2 size={20} className="animate-spin" /> : (
                                         <>

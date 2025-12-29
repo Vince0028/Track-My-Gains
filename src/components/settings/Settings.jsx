@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { User, Scale, Shield, FileText, LogOut, ChevronRight, Moon, Sun, Trash2, X } from 'lucide-react';
 
-const Settings = ({ isDarkMode, toggleTheme, confirmAction, onClearData, onResetData, userEmail, units, toggleUnits }) => {
+const Settings = ({ isDarkMode, toggleTheme, confirmAction, onSignOut, onResetData, userEmail, units, toggleUnits }) => {
     const [infoModal, setInfoModal] = useState(null);
 
     const sections = [
@@ -116,7 +116,7 @@ const Settings = ({ isDarkMode, toggleTheme, confirmAction, onClearData, onReset
 
                 <div className="pt-8 space-y-4">
                     <button
-                        onClick={onClearData}
+                        onClick={onSignOut}
                         className="w-full flex items-center justify-center gap-2 p-6 bg-[var(--bg-secondary)] border border-[var(--border)] organic-shape text-[var(--text-primary)] font-bold hover:bg-[var(--bg-primary)] transition-organic shadow-sm"
                     >
                         <LogOut size={20} />

@@ -375,9 +375,11 @@ const App = () => {
                     userEmail={session?.user?.email}
                     units={units}
                     toggleUnits={() => setUnits(u => u === 'kg' ? 'lbs' : 'kg')}
-                    onClearData={async () => {
+                    onSignOut={async () => {
                         confirmAction("Sign Out?", "Are you sure you want to sign out?", async () => {
-                            await supabase.auth.signOut();
+                            const { error } = await supabase.auth.signOut();
+                            if (error) console.error("Sign out error:", error);
+                            setSession(null); // Force local state clearing immediately
                         });
                     }}
                     onResetData={async () => {
