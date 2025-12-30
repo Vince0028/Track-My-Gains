@@ -5,17 +5,60 @@ import { Mail, Lock, Loader2, ArrowRight, CheckCircle } from 'lucide-react';
 import authBg1 from '../../assets/auth_bg_1.png';
 import authBg2 from '../../assets/auth_bg_2.png';
 import authBg3 from '../../assets/auth_bg_3.png';
+import authBg4 from '../../assets/auth_bg_4.png';
+import authBg5 from '../../assets/auth_bg_5.png';
+import authBg6 from '../../assets/auth_bg_6.png'; // Restored
+
+const QUOTES = [
+    "Light weight baby!", "Zero Excuses", "One more rep", "No pain no gain",
+    "Believe to achieve", "Sweat is just fat crying", "Train insane", "Focus",
+    "Consistency is Key", "Earn your shower", "Be a beast", "Limitless",
+    "Gains incoming"
+];
+
+const FloatingQuotes = () => {
+    // Generate static initial positions to avoid re-renders causing jumps
+    const [floatingItems] = useState(() => QUOTES.map((text, i) => ({
+        text,
+        id: i,
+        left: Math.random() * 90 + 5 + '%', // 5-95%
+        animationDelay: Math.random() * 5 + 's', // Reduced delay for faster appearance check
+        animationDuration: Math.random() * 20 + 8 + 's', // 8s - 28s range
+        fontSize: Math.random() * 1 + 1 + 'rem', // Bigger: 1rem - 2rem
+    })));
+
+    return (
+        <div className="absolute inset-0 z-10 overflow-hidden pointer-events-none">
+            {floatingItems.map((item) => (
+                <div
+                    key={item.id}
+                    className="absolute text-white font-bold whitespace-nowrap select-none animate-float-up"
+                    style={{
+                        left: item.left,
+                        bottom: '-10vh', // Start slightly lower
+                        animationDelay: item.animationDelay,
+                        animationDuration: item.animationDuration,
+                        fontSize: item.fontSize,
+                        textShadow: '0 0 20px rgba(139, 148, 122, 0.5)' // Add glow
+                    }}
+                >
+                    {item.text}
+                </div>
+            ))}
+        </div>
+    );
+};
 
 const AuthBackground = () => {
-    const images = [authBg1, authBg2, authBg3];
+    const images = [authBg1, authBg2, authBg3, authBg4, authBg5, authBg6];
     const [currentIndex, setCurrentIndex] = useState(0);
 
     useEffect(() => {
         const interval = setInterval(() => {
             setCurrentIndex((prev) => (prev + 1) % images.length);
-        }, 6000);
+        }, 5000); // Faster cycle
         return () => clearInterval(interval);
-    }, []);
+    }, [images.length]);
 
     return (
         <div className="absolute inset-0 z-0 overflow-hidden">
@@ -24,14 +67,15 @@ const AuthBackground = () => {
                     key={index}
                     className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${index === currentIndex ? 'opacity-100' : 'opacity-0'}`}
                 >
+                    <div className="absolute inset-0 bg-black/60 z-10" /> {/* Dark overlay for text readability */}
                     <img
                         src={img}
                         alt="Background"
-                        className={`w-full h-full object-cover transition-transform duration-[8000ms] ease-out ${index === currentIndex ? 'scale-110' : 'scale-100'}`}
+                        className={`w-full h-full object-cover transition-transform duration-[6000ms] ease-linear ${index === currentIndex ? 'scale-110' : 'scale-100'}`}
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-black/30" />
                 </div>
             ))}
+            <FloatingQuotes />
         </div>
     );
 };
