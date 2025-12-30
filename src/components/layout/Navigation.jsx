@@ -5,7 +5,7 @@ import iconCalendar from '../../assets/icon_calendar.png';
 import iconSchedule from '../../assets/icon_schedule.png';
 import iconCoach from '../../assets/icon_coach.png';
 import iconSettings from '../../assets/icon_settings.png';
-import { Sun, Moon, Zap, LogOut } from 'lucide-react';
+import { Sun, Moon, Zap, LogOut, ScanLine } from 'lucide-react';
 
 const Navigation = ({ currentScreen, onScreenChange, isDarkMode, toggleTheme, onSignOut }) => {
 
@@ -14,6 +14,7 @@ const Navigation = ({ currentScreen, onScreenChange, isDarkMode, toggleTheme, on
         { id: 1, icon: <img src={iconCalendar} alt="Calendar" className="w-7 h-7 object-contain" />, label: 'Calendar' },
         { id: 2, icon: <img src={iconSchedule} alt="Schedule" className="w-7 h-7 object-contain" />, label: 'Schedule' },
         { id: 3, icon: <img src={iconCoach} alt="Coach" className="w-7 h-7 object-contain" />, label: 'Coach' },
+        { id: 5, icon: <ScanLine size={28} className={currentScreen === 5 ? "text-[var(--bg-primary)]" : "text-[var(--text-secondary)]"} />, label: 'Scanner' }, // Reordered before Settings
         { id: 4, icon: <img src={iconSettings} alt="Settings" className="w-7 h-7 object-contain" />, label: 'Settings' },
     ];
 

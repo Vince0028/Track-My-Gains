@@ -1,11 +1,12 @@
 
 import React, { useState, useEffect } from 'react';
-import { Zap, Calendar, MessageSquare, AlertTriangle, Settings as SettingsIcon } from 'lucide-react';
+import { Zap, Calendar, MessageSquare, AlertTriangle, Settings as SettingsIcon, ScanLine } from 'lucide-react';
 import Navigation from './components/layout/Navigation';
 import Dashboard from './components/dashboard/Dashboard';
 import CalendarView from './components/calendar/CalendarView';
 import WeeklySchedule from './components/schedule/WeeklySchedule';
 import AICoach from './components/coach/AICoach';
+import FoodScanner from './components/scanner/FoodScanner';
 import Settings from './components/settings/Settings';
 import Auth from './components/auth/Auth';
 import { WEEKLY_DEFAULT_PLAN } from './constants';
@@ -21,6 +22,7 @@ const AppScreen = {
     Calendar: 1,
     Exercises: 2,
     AICoach: 3,
+    Scanner: 5,
     Settings: 4
 };
 
@@ -383,6 +385,8 @@ const App = () => {
                 />;
             case AppScreen.AICoach:
                 return <AICoach />;
+            case AppScreen.Scanner:
+                return <FoodScanner />;
             case AppScreen.Settings:
                 return <Settings
                     isDarkMode={isDarkMode}
@@ -483,7 +487,7 @@ const App = () => {
 
 
             <div className="md:hidden fixed bottom-6 left-6 right-6 bg-[var(--bg-secondary)]/90 backdrop-blur-lg organic-shape organic-border flex justify-around p-4 z-50 subtle-depth border-t border-[var(--border)]">
-                {[AppScreen.Dashboard, AppScreen.Calendar, AppScreen.Exercises, AppScreen.AICoach, AppScreen.Settings].map((screen) => (
+                {[AppScreen.Dashboard, AppScreen.Calendar, AppScreen.Exercises, AppScreen.AICoach, AppScreen.Scanner, AppScreen.Settings].map((screen) => (
                     <button
                         key={screen}
                         onClick={() => setCurrentScreen(screen)}
@@ -493,6 +497,7 @@ const App = () => {
                         {screen === AppScreen.Calendar && <img src={iconCalendar} alt="Calendar" className="w-8 h-8 object-contain" />}
                         {screen === AppScreen.Exercises && <img src={iconSchedule} alt="Schedule" className="w-8 h-8 object-contain" />}
                         {screen === AppScreen.AICoach && <img src={iconCoach} alt="Coach" className="w-8 h-8 object-contain" />}
+                        {screen === AppScreen.Scanner && <ScanLine size={32} className={currentScreen === AppScreen.Scanner ? "text-[var(--bg-primary)]" : "text-[var(--text-secondary)]"} />}
                         {screen === AppScreen.Settings && <img src={iconSettings} alt="Settings" className="w-8 h-8 object-contain" />}
                     </button>
                 ))}
