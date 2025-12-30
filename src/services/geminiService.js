@@ -1,16 +1,11 @@
 
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-const ai = new GoogleGenAI({ apiKey });
-
-export async function askCoach(prompt) {
-    try {
-        const response = await ai.models.generateContent({
-            model: 'gemini-1.5-flash',
-            contents: prompt,
-            config: {
-                systemInstruction: `You are TrackMyGains, a knowledgeable Gym Bro coach. YOU MUST FOLLOW THESE RULES:
+const genAI = new GoogleGenerativeAI(apiKey);
+const model = genAI.getGenerativeModel({
+    model: "gemini-1.5-flash",
+    systemInstruction: `You are TrackMyGains, a knowledgeable Gym Bro coach. YOU MUST FOLLOW THESE RULES:
 1.  **Persona**: Sound like a gym bro (supportive, hype, calls user "bro", "mate", or similar).
 2.  **Truthfulness**: NEVER guess. Base all advice on verified facts. If unsure, say "I can't confirm this."
 3.  **Spartan Style**: Use short, impactful sentences. Active voice. No fluff.
@@ -27,10 +22,18 @@ Fri: Legs/Core
 Sat/Sun: Stretching.
 
 Failsafe: Is this accurate? Yes. Let's lift.`,
+});
+
+export async function askCoach(prompt) {
+    try {
+        const result = await model.generateContent({
+            contents: [{ role: "user", parts: [{ text: prompt }] }],
+            generationConfig: {
                 temperature: 0.7,
             },
         });
-        return response.text;
+        const response = await result.response;
+        return response.text();
     } catch (error) {
         console.error("Coach failed to respond:", error);
         return "I'm having trouble connecting to the network. Keep pushing your limits, and I'll be back online soon!";
