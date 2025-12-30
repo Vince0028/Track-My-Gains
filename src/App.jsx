@@ -16,6 +16,7 @@ import iconCalendar from './assets/icon_calendar.png';
 import iconSchedule from './assets/icon_schedule.png';
 import iconCoach from './assets/icon_coach.png';
 import iconSettings from './assets/icon_settings.png';
+import iconScanner from './assets/icon_scanner.png';
 
 const AppScreen = {
     Dashboard: 0,
@@ -497,7 +498,7 @@ const App = () => {
                         {screen === AppScreen.Calendar && <img src={iconCalendar} alt="Calendar" className="w-8 h-8 object-contain" />}
                         {screen === AppScreen.Exercises && <img src={iconSchedule} alt="Schedule" className="w-8 h-8 object-contain" />}
                         {screen === AppScreen.AICoach && <img src={iconCoach} alt="Coach" className="w-8 h-8 object-contain" />}
-                        {screen === AppScreen.Scanner && <ScanLine size={32} className={currentScreen === AppScreen.Scanner ? "text-[var(--bg-primary)]" : "text-[var(--text-secondary)]"} />}
+                        {screen === AppScreen.Scanner && <img src={iconScanner} alt="Scanner" className="w-8 h-8 object-contain" />}
                         {screen === AppScreen.Settings && <img src={iconSettings} alt="Settings" className="w-8 h-8 object-contain" />}
                     </button>
                 ))}
