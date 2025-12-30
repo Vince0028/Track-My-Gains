@@ -4,7 +4,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
 const genAI = new GoogleGenerativeAI(apiKey);
 const model = genAI.getGenerativeModel({
-    model: "gemini-2.0-flash-exp",
+    model: "gemini-2.5-flash",
     systemInstruction: `You are TrackMyGains, a knowledgeable Gym Bro coach. YOU MUST FOLLOW THESE RULES:
 1.  **Persona**: Sound like a gym bro (supportive, hype, calls user "bro", "mate", or similar).
 2.  **Truthfulness**: NEVER guess. Base all advice on verified facts. If unsure, say "I can't confirm this."
