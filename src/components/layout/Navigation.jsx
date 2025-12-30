@@ -1,8 +1,8 @@
 
 import React from 'react';
-import { LayoutDashboard, Calendar, Dumbbell, MessageSquare, Settings as SettingsIcon, Sun, Moon, Zap } from 'lucide-react';
+import { LayoutDashboard, Calendar, Dumbbell, MessageSquare, Settings as SettingsIcon, Sun, Moon, Zap, LogOut } from 'lucide-react';
 
-const Navigation = ({ currentScreen, onScreenChange, isDarkMode, toggleTheme }) => {
+const Navigation = ({ currentScreen, onScreenChange, isDarkMode, toggleTheme, onSignOut }) => {
 
 
     const navItems = [
@@ -42,6 +42,13 @@ const Navigation = ({ currentScreen, onScreenChange, isDarkMode, toggleTheme }) 
                     className="p-2 text-[var(--text-secondary)] hover:text-[var(--accent)] transition-organic"
                 >
                     {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
+                </button>
+                <button
+                    onClick={onSignOut}
+                    className="p-2 text-[var(--text-secondary)] hover:text-rose-500 transition-organic"
+                    title="Sign Out"
+                >
+                    <LogOut size={20} />
                 </button>
             </div>
         </nav>

@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Zap, Calendar, MessageSquare, AlertTriangle } from 'lucide-react';
+import { Zap, Calendar, MessageSquare, AlertTriangle, Settings as SettingsIcon } from 'lucide-react';
 import Navigation from './components/layout/Navigation';
 import Dashboard from './components/dashboard/Dashboard';
 import CalendarView from './components/calendar/CalendarView';
@@ -317,6 +317,14 @@ const App = () => {
         return currentSession;
     };
 
+    const handleSignOut = () => {
+        confirmAction("Sign Out?", "Are you sure you want to sign out?", async () => {
+            const { error } = await supabase.auth.signOut();
+            if (error) console.error("Sign out error:", error);
+            setSession(null); // Force local state clearing immediately
+        });
+    };
+
     const renderScreen = () => {
         switch (currentScreen) {
             case AppScreen.Dashboard:
@@ -375,13 +383,7 @@ const App = () => {
                     userEmail={session?.user?.email}
                     units={units}
                     toggleUnits={() => setUnits(u => u === 'kg' ? 'lbs' : 'kg')}
-                    onSignOut={async () => {
-                        confirmAction("Sign Out?", "Are you sure you want to sign out?", async () => {
-                            const { error } = await supabase.auth.signOut();
-                            if (error) console.error("Sign out error:", error);
-                            setSession(null); // Force local state clearing immediately
-                        });
-                    }}
+                    onSignOut={handleSignOut}
                     onResetData={async () => {
                         confirmAction(
                             "Reset All Data?",
@@ -427,6 +429,7 @@ const App = () => {
                 onScreenChange={setCurrentScreen}
                 isDarkMode={isDarkMode}
                 toggleTheme={toggleTheme}
+                onSignOut={handleSignOut}
             />
             <main className="max-w-7xl mx-auto pb-24 md:pb-8">
                 {renderScreen()}
@@ -466,7 +469,7 @@ const App = () => {
 
 
             <div className="md:hidden fixed bottom-6 left-6 right-6 bg-[var(--bg-secondary)]/90 backdrop-blur-lg organic-shape organic-border flex justify-around p-4 z-50 subtle-depth border-t border-[var(--border)]">
-                {[AppScreen.Dashboard, AppScreen.Calendar, AppScreen.Exercises, AppScreen.AICoach].map((screen) => (
+                {[AppScreen.Dashboard, AppScreen.Calendar, AppScreen.Exercises, AppScreen.AICoach, AppScreen.Settings].map((screen) => (
                     <button
                         key={screen}
                         onClick={() => setCurrentScreen(screen)}
@@ -476,6 +479,7 @@ const App = () => {
                         {screen === AppScreen.Calendar && <Calendar size={24} />}
                         {screen === AppScreen.Exercises && <Zap size={24} className="rotate-90" />}
                         {screen === AppScreen.AICoach && <MessageSquare size={24} />}
+                        {screen === AppScreen.Settings && <SettingsIcon size={24} />}
                     </button>
                 ))}
             </div>
