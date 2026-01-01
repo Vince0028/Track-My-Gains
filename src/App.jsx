@@ -306,7 +306,7 @@ const App = () => {
         const newLog = {
             id: crypto.randomUUID(),
             user_id: session.user.id,
-            date: new Date().toISOString().split('T')[0], // YYYY-MM-DD
+            date: mealData.date || new Date().toISOString().split('T')[0], // Allow custom date
             meal_name: 'Scanned Meal',
             calories: Math.round(mealData.totals.calories),
             protein: Math.round(mealData.totals.protein),
@@ -336,6 +336,32 @@ const App = () => {
             alert(`Failed to save meal: ${error.message}`);
             // Revert optimistic update on failure
             setNutritionLogs(prev => prev.filter(l => l.id !== newLog.id));
+        }
+    };
+
+    const handleUpdateLog = async (logId, updatedData) => {
+        if (!session?.user?.id) return;
+
+        // Optimistic Update
+        setNutritionLogs(prev => prev.map(log =>
+            log.id === logId ? { ...log, ...updatedData } : log
+        ));
+
+        const { error } = await supabase
+            .from('daily_nutrition')
+            .update({
+                calories: Math.round(updatedData.calories),
+                protein: Math.round(updatedData.protein),
+                carbs: Math.round(updatedData.carbs),
+                fats: Math.round(updatedData.fats),
+                foods: updatedData.foods
+            })
+            .eq('id', logId);
+
+        if (error) {
+            console.error("Failed to update log:", error);
+            alert(`Failed to update meal: ${error.message}`);
+            // Revert would be complex here, assuming success for now or simple refresh needed
         }
     };
 
@@ -447,6 +473,7 @@ const App = () => {
                 return <FoodScanner
                     onLogMeal={handleLogMeal}
                     onDeleteLog={handleDeleteMeal}
+                    onUpdateLog={handleUpdateLog}
                     nutritionLogs={nutritionLogs}
                     profile={profile}
                     units={units}

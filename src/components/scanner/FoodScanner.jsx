@@ -2,9 +2,10 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Upload, Loader2, ScanLine, X, ChevronRight, PieChart, Flame, Beef, Wheat, Droplet, Camera, FlipHorizontal, CheckCircle2, Calendar as CalendarIcon, ChevronLeft, Utensils, ScanBarcode, Pencil, Info, Trash2 } from 'lucide-react';
 import { analyzeFoodImage } from '../../services/groqService';
 
-const FoodScanner = ({ onLogMeal, onDeleteLog, nutritionLogs = [], profile = null, units = 'kg' }) => {
+const FoodScanner = ({ onLogMeal, onDeleteLog, onUpdateLog, nutritionLogs = [], profile = null, units = 'kg' }) => {
     const [activeTab, setActiveTab] = useState('scan'); // 'scan' | 'diary'
     const [scanMode, setScanMode] = useState('food'); // 'food' | 'label'
+    const [scanDate, setScanDate] = useState(new Date().toISOString().split('T')[0]); // Default to today
     const [showTips, setShowTips] = useState(false);
 
     // Scanner State
@@ -148,16 +149,23 @@ const FoodScanner = ({ onLogMeal, onDeleteLog, nutritionLogs = [], profile = nul
             else if (data.food_name) foodsArray = [data];
             else throw new Error("Invalid response format from AI.");
 
-            // Calculate totals by simple summation of the AI's detected items
-            // This ensures the Big Number matches the list items perfectly.
-            const totals = foodsArray.reduce((acc, item) => ({
-                calories: acc.calories + (parseInt(item.calories) || 0),
-                protein: acc.protein + (parseFloat(item.protein) || 0),
-                carbs: acc.carbs + (parseFloat(item.carbs) || 0),
-                fats: acc.fats + (parseFloat(item.fats) || 0),
-            }), { calories: 0, protein: 0, carbs: 0, fats: 0 });
+            // Initialize with quantity: 1
+            foodsArray = foodsArray.map(f => ({ ...f, quantity: 1 }));
 
-            setResult({ foods: foodsArray, totals });
+            // Calculate totals considering quantity
+            const calculateTotals = (items) => {
+                return items.reduce((acc, item) => {
+                    const qty = item.quantity || 1;
+                    return {
+                        calories: acc.calories + (parseInt(item.calories) || 0) * qty,
+                        protein: acc.protein + (parseFloat(item.protein) || 0) * qty,
+                        carbs: acc.carbs + (parseFloat(item.carbs) || 0) * qty,
+                        fats: acc.fats + (parseFloat(item.fats) || 0) * qty,
+                    };
+                }, { calories: 0, protein: 0, carbs: 0, fats: 0 });
+            };
+
+            setResult({ foods: foodsArray, totals: calculateTotals(foodsArray) });
         } catch (err) {
             console.error("Analysis failed:", err);
             setError(err.message || "Failed to analyze image. Please try again.");
@@ -166,9 +174,23 @@ const FoodScanner = ({ onLogMeal, onDeleteLog, nutritionLogs = [], profile = nul
         }
     };
 
+    // Recalculate totals helper
+    const recalculateResultTotals = (items) => {
+        const newTotals = items.reduce((acc, item) => {
+            const qty = item.quantity || 1;
+            return {
+                calories: acc.calories + (parseInt(item.calories) || 0) * qty,
+                protein: acc.protein + (parseFloat(item.protein) || 0) * qty,
+                carbs: acc.carbs + (parseFloat(item.carbs) || 0) * qty,
+                fats: acc.fats + (parseFloat(item.fats) || 0) * qty,
+            };
+        }, { calories: 0, protein: 0, carbs: 0, fats: 0 });
+        setResult({ foods: items, totals: newTotals });
+    };
+
     const handleSave = () => {
         if (onLogMeal && result) {
-            onLogMeal(result);
+            onLogMeal({ ...result, date: scanDate });
             setSaved(true);
         }
     };
@@ -182,11 +204,63 @@ const FoodScanner = ({ onLogMeal, onDeleteLog, nutritionLogs = [], profile = nul
         if (fileInputRef.current) fileInputRef.current.value = '';
     };
 
+
+    // New: Handle Quantity Update in Diary Modal
+    const handleUpdateLogQuantity = async (log, foodIndex, delta) => {
+        if (!onUpdateLog) return;
+
+        const updatedFoods = [...log.foods];
+        const item = updatedFoods[foodIndex];
+        const currentQty = item.quantity || 1;
+        const newQty = Math.max(0.5, currentQty + delta);
+
+        updatedFoods[foodIndex] = { ...item, quantity: newQty };
+
+        // Recalculate Log Totals
+        const newTotals = updatedFoods.reduce((acc, f) => {
+            const q = f.quantity || 1;
+            return {
+                calories: acc.calories + (parseInt(f.calories) || 0) * q,
+                protein: acc.protein + (parseFloat(f.protein) || 0) * q,
+                carbs: acc.carbs + (parseFloat(f.carbs) || 0) * q,
+                fats: acc.fats + (parseFloat(f.fats) || 0) * q,
+            };
+        }, { calories: 0, protein: 0, carbs: 0, fats: 0 });
+
+        const updatedLog = {
+            ...log,
+            foods: updatedFoods,
+            calories: newTotals.calories,
+            protein: newTotals.protein,
+            carbs: newTotals.carbs,
+            fats: newTotals.fats
+        };
+
+        // Call Parent Update
+        await onUpdateLog(log.id, updatedLog);
+
+        // Update Local Modal State
+        setViewModal(prev => {
+            const newLogs = prev.logs.map(l => l.id === log.id ? updatedLog : l);
+            const newTotal = newLogs.reduce((sum, l) => sum + (l.calories || 0), 0);
+            return { ...prev, logs: newLogs, totalCals: newTotal };
+        });
+    };
+
     // New: Handle Renaming
     const handleNameChange = (index, newName) => {
         const updatedFoods = [...result.foods];
         updatedFoods[index].name = newName;
-        setResult({ ...result, foods: updatedFoods });
+        recalculateResultTotals(updatedFoods);
+    };
+
+    // New: Handle Quantity Change
+    const handleQuantityChange = (index, delta) => {
+        const updatedFoods = [...result.foods];
+        const currentQty = updatedFoods[index].quantity || 1;
+        const newQty = Math.max(0.5, currentQty + delta); // Min 0.5
+        updatedFoods[index].quantity = newQty;
+        recalculateResultTotals(updatedFoods);
     };
 
     // New: Handle Deletion from Modal
@@ -369,18 +443,37 @@ const FoodScanner = ({ onLogMeal, onDeleteLog, nutritionLogs = [], profile = nul
                                             {log.foods && (
                                                 <div className="space-y-1 mb-3">
                                                     {log.foods.map((food, fi) => (
-                                                        <div key={fi} className="text-xs text-[var(--text-secondary)] flex justify-between">
-                                                            <span>{food.name}</span>
-                                                            <span className="opacity-70">{food.calories} cal</span>
+                                                        <div key={fi} className="flex flex-col gap-1 border-b border-[var(--border)]/50 pb-2 last:border-0">
+                                                            <div className="flex justify-between items-center">
+                                                                <span className="text-sm font-medium">{food.name}</span>
+                                                                <span className="text-xs opacity-70 font-mono">{Math.round((parseInt(food.calories) || 0) * (food.quantity || 1))} cal</span>
+                                                            </div>
+                                                            <div className="flex items-center justify-between">
+                                                                <div className="flex items-center gap-2 bg-[var(--bg-secondary)] rounded-md px-1 py-0.5 border border-[var(--border)]">
+                                                                    <button onClick={(e) => { e.stopPropagation(); handleUpdateLogQuantity(log, fi, -0.5); }} className="w-5 h-5 flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-primary)] rounded font-bold">-</button>
+                                                                    <span className="text-[10px] font-bold w-6 text-center">{food.quantity || 1}x</span>
+                                                                    <button onClick={(e) => { e.stopPropagation(); handleUpdateLogQuantity(log, fi, 0.5); }} className="w-5 h-5 flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-primary)] rounded font-bold">+</button>
+                                                                </div>
+                                                                <div className="text-[10px] text-[var(--text-secondary)]">
+                                                                    {(parseFloat(food.protein) * (food.quantity || 1)).toFixed(1)}P • {(parseFloat(food.carbs) * (food.quantity || 1)).toFixed(1)}C • {(parseFloat(food.fats) * (food.quantity || 1)).toFixed(1)}F
+                                                                </div>
+                                                            </div>
                                                         </div>
                                                     ))}
                                                 </div>
                                             )}
 
                                             <div className="flex gap-2 text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)] pt-2 border-t border-[var(--border)]">
-                                                <span className="text-emerald-500">{log.protein}g P</span>
-                                                <span className="text-amber-500">{log.carbs}g C</span>
-                                                <span className="text-rose-500">{log.fats}g F</span>
+                                                {/* Calculate precise macros from foods array if available to show decimals */}
+                                                <span className="text-emerald-500">
+                                                    {log.foods ? log.foods.reduce((sum, f) => sum + (parseFloat(f.protein) || 0) * (f.quantity || 1), 0).toFixed(1) : log.protein}g P
+                                                </span>
+                                                <span className="text-amber-500">
+                                                    {log.foods ? log.foods.reduce((sum, f) => sum + (parseFloat(f.carbs) || 0) * (f.quantity || 1), 0).toFixed(1) : log.carbs}g C
+                                                </span>
+                                                <span className="text-rose-500">
+                                                    {log.foods ? log.foods.reduce((sum, f) => sum + (parseFloat(f.fats) || 0) * (f.quantity || 1), 0).toFixed(1) : log.fats}g F
+                                                </span>
                                             </div>
                                         </div>
                                     ))}
@@ -531,29 +624,43 @@ const FoodScanner = ({ onLogMeal, onDeleteLog, nutritionLogs = [], profile = nul
                                 </div>
                                 <div className="grid gap-3">
                                     {result.foods.map((item, index) => (
-                                        <div key={index} className="flex items-center justify-between p-4 bg-[var(--bg-secondary)]/30 backdrop-blur-md rounded-2xl border border-[var(--border)]" style={{ animationDelay: `${index * 100} ms` }}>
-                                            <div className="flex items-center gap-4 flex-1">
-                                                <div className="w-10 h-10 rounded-xl bg-[var(--bg-primary)] border border-[var(--border)] flex items-center justify-center text-[var(--text-secondary)] font-bold shadow-sm">{index + 1}</div>
-                                                <div className="flex-1">
-                                                    {scanMode === 'label' ? (
-                                                        <div className="flex items-center gap-2 group/edit">
-                                                            <input
-                                                                type="text"
-                                                                value={item.name}
-                                                                onChange={(e) => handleNameChange(index, e.target.value)}
-                                                                className="bg-transparent font-bold text-[var(--text-primary)] text-lg leading-tight w-full focus:outline-none focus:border-b border-[var(--accent)] transition-all placeholder:opacity-50"
-                                                                placeholder="Click to name item..."
-                                                            />
-                                                            <Pencil size={12} className="opacity-0 group-hover/edit:opacity-50 text-[var(--text-secondary)]" />
-                                                        </div>
-                                                    ) : (
-                                                        <p className="font-bold text-[var(--text-primary)] text-lg leading-tight">{item.name}</p>
-                                                    )}
-                                                    <p className="text-xs text-[var(--text-secondary)] font-medium mt-0.5">{item.serving_size}</p>
+                                        <div key={index} className="flex flex-col p-4 bg-[var(--bg-secondary)]/30 backdrop-blur-md rounded-2xl border border-[var(--border)]" style={{ animationDelay: `${index * 100} ms` }}>
+                                            <div className="flex items-center justify-between mb-2">
+                                                <div className="flex items-center gap-4 flex-1">
+                                                    <div className="w-10 h-10 rounded-xl bg-[var(--bg-primary)] border border-[var(--border)] flex items-center justify-center text-[var(--text-secondary)] font-bold shadow-sm">{index + 1}</div>
+                                                    <div className="flex-1">
+                                                        {scanMode === 'label' ? (
+                                                            <div className="flex items-center gap-2 group/edit">
+                                                                <input
+                                                                    type="text"
+                                                                    value={item.name}
+                                                                    onChange={(e) => handleNameChange(index, e.target.value)}
+                                                                    className="bg-transparent font-bold text-[var(--text-primary)] text-lg leading-tight w-full focus:outline-none focus:border-b border-[var(--accent)] transition-all placeholder:opacity-50"
+                                                                    placeholder="Click to name item..."
+                                                                />
+                                                                <Pencil size={12} className="opacity-0 group-hover/edit:opacity-50 text-[var(--text-secondary)]" />
+                                                            </div>
+                                                        ) : (
+                                                            <p className="font-bold text-[var(--text-primary)] text-lg leading-tight">{item.name}</p>
+                                                        )}
+                                                        <p className="text-xs text-[var(--text-secondary)] font-medium mt-0.5">{item.serving_size}</p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex flex-col items-end gap-1">
+                                                    <span className="font-black text-[var(--text-primary)]">{Math.round((parseInt(item.calories) || 0) * (item.quantity || 1))} <span className="text-[10px] text-[var(--text-secondary)] font-medium uppercase">cal</span></span>
                                                 </div>
                                             </div>
-                                            <div className="flex flex-col items-end gap-1">
-                                                <span className="font-black text-[var(--text-primary)]">{item.calories} <span className="text-[10px] text-[var(--text-secondary)] font-medium uppercase">cal</span></span>
+
+                                            {/* Quantity Control Row */}
+                                            <div className="flex items-center justify-between pl-14">
+                                                <div className="flex items-center gap-3 bg-[var(--bg-primary)] rounded-lg p-1 border border-[var(--border)]">
+                                                    <button onClick={() => handleQuantityChange(index, -0.5)} className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-[var(--bg-secondary)] text-[var(--text-secondary)] font-bold">-</button>
+                                                    <span className="text-xs font-bold w-8 text-center">{item.quantity || 1}x</span>
+                                                    <button onClick={() => handleQuantityChange(index, 0.5)} className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-[var(--bg-secondary)] text-[var(--text-primary)] font-bold">+</button>
+                                                </div>
+                                                <div className="text-[10px] text-[var(--text-secondary)] font-mono">
+                                                    {(parseFloat(item.protein) * (item.quantity || 1)).toFixed(1)}g P • {(parseFloat(item.carbs) * (item.quantity || 1)).toFixed(1)}g C • {(parseFloat(item.fats) * (item.quantity || 1)).toFixed(1)}g F
+                                                </div>
                                             </div>
                                         </div>
                                     ))}
@@ -567,6 +674,20 @@ const FoodScanner = ({ onLogMeal, onDeleteLog, nutritionLogs = [], profile = nul
                                         </button>
                                     )}
                                     {saved && <div className="w-full py-4 bg-emerald-500/10 border border-emerald-500/50 text-emerald-500 font-bold rounded-2xl flex items-center justify-center gap-2 animate-in fade-in"><CheckCircle2 size={20} /> Saved to Diary!</div>}
+
+                                    {!saved && (
+                                        <div className="flex items-center gap-2 bg-[var(--bg-secondary)]/50 p-3 rounded-xl border border-[var(--border)]">
+                                            <CalendarIcon size={16} className="text-[var(--text-secondary)]" />
+                                            <span className="text-xs font-bold text-[var(--text-secondary)] uppercase">Log Date:</span>
+                                            <input
+                                                type="date"
+                                                value={scanDate}
+                                                onChange={(e) => setScanDate(e.target.value)}
+                                                className="bg-transparent text-sm font-bold text-[var(--text-primary)] focus:outline-none flex-1 text-right"
+                                            />
+                                        </div>
+                                    )}
+
                                     <button onClick={resetScanner} className="w-full py-4 text-[var(--text-secondary)] font-bold hover:text-[var(--text-primary)] transition-colors flex items-center justify-center gap-2 hover:bg-[var(--bg-secondary)]/30 rounded-2xl"><ScanLine size={18} /> Scan Another Meal</button>
                                 </div>
                             </div>
