@@ -121,6 +121,13 @@ const Auth = () => {
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
 
+    // Sign Up Fields
+    const [age, setAge] = useState('');
+    const [height, setHeight] = useState('');
+    const [weight, setWeight] = useState('');
+    const [bloodPressure, setBloodPressure] = useState('');
+    const [gender, setGender] = useState('');
+
     const isValidEmail = (email) => {
         // Strict email validation regex
         // Checks for: non-whitespace chars + @ + non-whitespace chars + . + non-whitespace chars
@@ -148,11 +155,37 @@ const Auth = () => {
                 });
                 if (error) throw error;
             } else {
-                const { error } = await supabase.auth.signUp({
+                // Sign Up Flow
+                if (!age || !height || !weight || !gender) {
+                    throw new Error("Please fill in all required fields (Age, Gender, Height, Weight).");
+                }
+
+                const { data, error } = await supabase.auth.signUp({
                     email,
                     password
                 });
                 if (error) throw error;
+
+                // Update Profile immediately
+                if (data?.user) {
+                    const { error: profileError } = await supabase
+                        .from('profiles')
+                        .upsert({
+                            id: data.user.id,
+                            email: email,
+                            age: parseInt(age),
+                            height: parseFloat(height),
+                            weight: parseFloat(weight),
+                            gender: gender,
+                            blood_pressure: bloodPressure,
+                            updated_at: new Date()
+                        });
+
+                    if (profileError) {
+                        console.error("Error saving profile details:", profileError);
+                        // We don't block sign up success, but maybe warn user?
+                    }
+                }
                 setCheckEmail(true);
             }
         } catch (error) {
@@ -185,7 +218,7 @@ const Auth = () => {
                     <p className="text-slate-200 drop-shadow-md text-lg">Your personal growth journey starts here.</p>
                 </div>
 
-                <div className="bg-black/40 backdrop-blur-xl p-8 organic-shape organic-border border-white/10 shadow-2xl transition-all duration-300">
+                <div className="bg-black/40 backdrop-blur-xl p-8 organic-shape organic-border border-white/10 shadow-2xl transition-all duration-300 max-h-[85vh] overflow-y-auto">
                     <div className="flex gap-4 mb-8 p-1 bg-black/20 rounded-xl border border-white/5">
                         <button
                             onClick={() => setIsLogin(true)}
@@ -235,6 +268,75 @@ const Auth = () => {
                                 />
                             </div>
                         </div>
+
+                        {/* Additional Fields for Sign Up */}
+                        {!isLogin && (
+                            <div className="space-y-4 pt-2 animate-in fade-in slide-in-from-top-2 duration-300">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-bold text-slate-300 uppercase ml-1">Age *</label>
+                                        <input
+                                            type="number"
+                                            required={!isLogin}
+                                            value={age}
+                                            onChange={(e) => setAge(e.target.value)}
+                                            className="w-full bg-black/20 border border-white/10 organic-shape px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)] transition-organic"
+                                            placeholder="25"
+                                        />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-bold text-slate-300 uppercase ml-1">Gender *</label>
+                                        <select
+                                            required={!isLogin}
+                                            value={gender}
+                                            onChange={(e) => setGender(e.target.value)}
+                                            className="w-full bg-black/20 border border-white/10 organic-shape px-4 py-3 text-white focus:outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)] transition-organic appearance-none"
+                                        >
+                                            <option value="" className="text-black">Select</option>
+                                            <option value="Male" className="text-black">Male</option>
+                                            <option value="Female" className="text-black">Female</option>
+                                            <option value="Other" className="text-black">Other</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-bold text-slate-300 uppercase ml-1">Height (cm) *</label>
+                                        <input
+                                            type="number"
+                                            required={!isLogin}
+                                            value={height}
+                                            onChange={(e) => setHeight(e.target.value)}
+                                            className="w-full bg-black/20 border border-white/10 organic-shape px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)] transition-organic"
+                                            placeholder="175"
+                                        />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-bold text-slate-300 uppercase ml-1">Weight (kg) *</label>
+                                        <input
+                                            type="number"
+                                            required={!isLogin}
+                                            value={weight}
+                                            onChange={(e) => setWeight(e.target.value)}
+                                            className="w-full bg-black/20 border border-white/10 organic-shape px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)] transition-organic"
+                                            placeholder="70"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="space-y-1">
+                                    <label className="text-xs font-bold text-slate-300 uppercase ml-1">Blood Pressure <span className="text-slate-500 normal-case">(Optional)</span></label>
+                                    <input
+                                        type="text"
+                                        value={bloodPressure}
+                                        onChange={(e) => setBloodPressure(e.target.value)}
+                                        className="w-full bg-black/20 border border-white/10 organic-shape px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)] transition-organic"
+                                        placeholder="120/80"
+                                    />
+                                </div>
+                            </div>
+                        )}
 
                         {error && (
                             <div className="p-3 bg-rose-500/20 border border-rose-500/30 text-rose-300 text-sm rounded-lg backdrop-blur-sm">

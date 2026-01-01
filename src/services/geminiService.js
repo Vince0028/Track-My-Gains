@@ -33,7 +33,7 @@ Failsafe: Is this accurate? Yes. Let's lift.`;
 const RATE_LIMIT_MS = 5000; // 5 seconds between requests
 let lastRequestTime = 0;
 
-export async function askCoach(prompt) {
+export async function askCoach(prompt, userProfile = null) {
     if (!apiKey) {
         console.error("VITE_GEMINI_API_KEY is missing!");
         return "CONFIGURATION ERROR: API Key is missing. Please add VITE_GEMINI_API_KEY to your Vercel Environment Variables.";
@@ -46,13 +46,30 @@ export async function askCoach(prompt) {
     }
     lastRequestTime = now;
 
+    // Construct dynamic system instruction
+    let dynamicInstruction = SYSTEM_INSTRUCTION;
+    if (userProfile) {
+        const { full_name, age, gender, height, weight, fitness_goals, blood_pressure } = userProfile;
+        const profileString = `
+USER PROFILE:
+- Name: ${full_name || 'Lightweight'}
+- Age: ${age || 'Unknown'}
+- Gender: ${gender || 'Unknown'}
+- Height: ${height || '?'} cm
+- Weight: ${weight || '?'} kg
+- Blood Pressure: ${blood_pressure || 'Unknown'}
+- Goal: ${fitness_goals || 'Getting Huge'}
+`;
+        dynamicInstruction += profileString + "\n\nTAILOR YOUR ADVICE TO THIS PROFILE.";
+    }
+
     // Try models in order
     for (const modelName of MODELS) {
         try {
             console.log(`Attempting to generate with model: ${modelName}`);
             const model = genAI.getGenerativeModel({
                 model: modelName,
-                systemInstruction: SYSTEM_INSTRUCTION,
+                systemInstruction: dynamicInstruction,
             });
 
             const result = await model.generateContent({

@@ -12,11 +12,32 @@ const AICoach = () => {
     const [loading, setLoading] = useState(false);
     const scrollRef = useRef(null);
 
+    const [profile, setProfile] = useState(null);
+
     useEffect(() => {
         if (scrollRef.current) {
             scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
         }
     }, [messages]);
+
+    useEffect(() => {
+        const fetchProfile = async () => {
+            try {
+                const { data: { user } } = await import('../../services/supabaseClient').then(m => m.supabase.auth.getUser());
+                if (user) {
+                    const { data } = await import('../../services/supabaseClient').then(m => m.supabase
+                        .from('profiles')
+                        .select('*')
+                        .eq('id', user.id)
+                        .single());
+                    if (data) setProfile(data);
+                }
+            } catch (e) {
+                console.error("Error fetching profile for AI:", e);
+            }
+        };
+        fetchProfile();
+    }, []);
 
     const handleSend = async () => {
         if (!input.trim() || loading) return;
@@ -26,7 +47,7 @@ const AICoach = () => {
         setInput('');
         setLoading(true);
 
-        const response = await askCoach(input);
+        const response = await askCoach(input, profile);
         const coachMsg = { id: (Date.now() + 1).toString(), role: 'coach', text: response || '' };
         setMessages(prev => [...prev, coachMsg]);
         setLoading(false);
