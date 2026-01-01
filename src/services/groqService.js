@@ -14,19 +14,20 @@ export async function analyzeFoodImage(base64Image, mode = 'food') {
             Analyze the nutrition label text in the image and return a STRICT JSON object.
             
             RULES:
-            1. **STRICT OCR**: Read the exact numbers for Calories, Protein, Carbs, and Fats from the text.
-            2. **IGNORE FOOD VISUALS**: Do not guess based on what the food looks like. Only trust the text.
-            3. **FORMAT**: Return raw JSON only.
+            1. **PRIORITIZE PER SERVING**: ALWAYS extract values from the "Per Serving" column. IGNORE "Per 100g" unless it is the ONLY column available.
+            2. **PRESERVE DECIMALS**: Return the EXACT decimal numbers found (e.g., if text says "2.6g", return 2.6, NOT 2).
+            3. **STRICT OCR**: Read the exact numbers for Calories, Protein, Carbs, and Fats.
+            4. **FORMAT**: Return raw JSON only.
             
             Output format:
             {
                 "foods": [
                     {
                         "name": "Scanned Label Item",
-                        "calories": 100, // Read exact number
-                        "protein": "20g", // Read exact number
-                        "carbs": "10g", // Read exact number
-                        "fats": "5g", // Read exact number
+                        "calories": 100, // Exact number
+                        "protein": "2.6g", // Exact decimal string
+                        "carbs": "10.5g", // Exact decimal string
+                        "fats": "5.2g", // Exact decimal string
                         "serving_size": "1 serving"
                     }
                 ]

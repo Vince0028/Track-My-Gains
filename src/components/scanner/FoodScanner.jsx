@@ -138,9 +138,9 @@ const FoodScanner = ({ onLogMeal, onDeleteLog, nutritionLogs = [], profile = nul
             // This ensures the Big Number matches the list items perfectly.
             const totals = foodsArray.reduce((acc, item) => ({
                 calories: acc.calories + (parseInt(item.calories) || 0),
-                protein: acc.protein + (parseInt(item.protein) || 0),
-                carbs: acc.carbs + (parseInt(item.carbs) || 0),
-                fats: acc.fats + (parseInt(item.fats) || 0),
+                protein: acc.protein + (parseFloat(item.protein) || 0),
+                carbs: acc.carbs + (parseFloat(item.carbs) || 0),
+                fats: acc.fats + (parseFloat(item.fats) || 0),
             }), { calories: 0, protein: 0, carbs: 0, fats: 0 });
 
             setResult({ foods: foodsArray, totals });
@@ -295,10 +295,10 @@ const FoodScanner = ({ onLogMeal, onDeleteLog, nutritionLogs = [], profile = nul
 
 
     return (
-        <div className="h-full w-full flex flex-col items-center justify-start p-6 animate-in fade-in zoom-in-95 duration-500 overflow-y-auto pb-24">
+        <div className="h-full w-full flex flex-col items-center justify-center p-4 animate-in fade-in zoom-in-95 duration-500 overflow-y-auto pb-24">
 
             {/* Main Tabs */}
-            <div className="flex gap-2 p-1 bg-[var(--bg-secondary)] border border-[var(--border)] rounded-full mb-8 relative z-10">
+            <div className="flex gap-2 p-1 bg-[var(--bg-secondary)] border border-[var(--border)] rounded-full mb-4 relative z-10">
                 <button
                     onClick={() => setActiveTab('scan')}
                     className={`px-6 py-2 rounded-full font-bold text-sm transition-all flex items-center gap-2 ${activeTab === 'scan' ? 'bg-[var(--accent)] text-white shadow-lg' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
@@ -378,13 +378,13 @@ const FoodScanner = ({ onLogMeal, onDeleteLog, nutritionLogs = [], profile = nul
             ) : (
                 /* Scanner View */
                 <>
-                    <div className="text-center space-y-2 mb-8">
+                    <div className="text-center space-y-2 mb-4">
                         <h2 className="text-4xl font-black bg-gradient-to-r from-[var(--text-primary)] to-[var(--text-secondary)] bg-clip-text text-transparent">Food Scanner</h2>
                         <p className="text-[var(--text-secondary)] font-medium">AI-Powered Nutrition Analysis</p>
                     </div>
 
                     {/* --- MODE SELECTOR --- */}
-                    <div className="flex flex-col gap-2 mb-6 w-full max-w-sm mx-auto">
+                    <div className="flex flex-col gap-2 mb-4 w-full max-w-sm mx-auto">
                         <div className="bg-[var(--bg-secondary)] p-1 rounded-xl flex gap-1 border border-[var(--border)]">
                             <button onClick={() => setScanMode('food')} className={`flex-1 py-3 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${scanMode === 'food' ? 'bg-[var(--bg-primary)] text-[var(--text-primary)] shadow-sm' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-primary)]/50'}`}>
                                 <Utensils size={18} /> Food Plate
