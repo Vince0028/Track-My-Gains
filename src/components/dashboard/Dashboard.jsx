@@ -139,9 +139,10 @@ const Dashboard = ({ sessions, todayWorkout, onUpdateSession, units, onNavigateT
                                                                 type="number"
                                                                 autoFocus
                                                                 className="w-16 bg-[var(--bg-secondary)] border border-[var(--accent)] rounded px-1 text-center"
-                                                                value={convertWeight(ex.weight, units).value}
+                                                                value={convertWeight(ex.weight, units).value === 0 ? '' : convertWeight(ex.weight, units).value}
                                                                 onBlur={() => setEditingExercise(null)}
                                                                 onChange={(e) => handleWeightChange(ex.id, e.target.value)}
+                                                                placeholder="0"
                                                             />
                                                         ) : (
                                                             <span

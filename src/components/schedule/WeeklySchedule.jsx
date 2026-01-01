@@ -244,8 +244,9 @@ const WeeklySchedule = ({ weeklyPlan, setWeeklyPlan, confirmAction, units }) => 
                                                     <input
                                                         type="number"
                                                         className="w-16 bg-[var(--bg-secondary)] border border-[var(--border)] rounded p-1"
-                                                        value={convertWeight(ex.weight || 0, units).value}
+                                                        value={convertWeight(ex.weight || 0, units).value === 0 ? '' : convertWeight(ex.weight || 0, units).value}
                                                         onChange={(e) => updateExercise(day, i, 'weight', e.target.value)}
+                                                        placeholder="0"
                                                     />
                                                 ) : <span>{convertWeight(ex.weight || 0, units).value}</span>}
                                                 <span>{units}</span>
@@ -255,8 +256,9 @@ const WeeklySchedule = ({ weeklyPlan, setWeeklyPlan, confirmAction, units }) => 
                                                     <input
                                                         type="number"
                                                         className="w-10 bg-[var(--bg-secondary)] border border-[var(--border)] rounded p-1"
-                                                        value={ex.sets}
+                                                        value={ex.sets === 0 ? '' : ex.sets}
                                                         onChange={(e) => updateExercise(day, i, 'sets', Number(e.target.value))}
+                                                        placeholder="0"
                                                     />
                                                 ) : <span>{ex.sets}</span>}
                                                 <span>sets</span>
@@ -266,8 +268,9 @@ const WeeklySchedule = ({ weeklyPlan, setWeeklyPlan, confirmAction, units }) => 
                                                     <input
                                                         type="number"
                                                         className="w-10 bg-[var(--bg-secondary)] border border-[var(--border)] rounded p-1"
-                                                        value={ex.reps}
+                                                        value={ex.reps === 0 ? '' : ex.reps}
                                                         onChange={(e) => updateExercise(day, i, 'reps', Number(e.target.value))}
+                                                        placeholder="0"
                                                     />
                                                 ) : <span>{ex.reps}</span>}
                                                 <span>reps</span>
