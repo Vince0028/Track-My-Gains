@@ -112,15 +112,17 @@ const App = () => {
     const updateSession = async (updatedSession, shouldSyncToPlan = true) => {
         if (!session?.user?.id) return;
 
-
+        // Optimistically update local state first to ensure UI reactivity
         setSessions(prev => {
             const exists = prev.find(s => s.id === updatedSession.id);
             if (exists) {
+                // Update existing session
                 return prev.map(s => s.id === updatedSession.id ? updatedSession : s);
+            } else {
+                // Append new session (this handles the "first check" case)
+                return [...prev, updatedSession];
             }
-            return [...prev, updatedSession];
         });
-
 
         const sessionPayload = { ...updatedSession, user_id: session.user.id };
         const { error } = await supabase
@@ -129,7 +131,7 @@ const App = () => {
 
         if (error) {
             console.error('Error updating session:', error);
-
+            // We could revert state here if needed, but for now we log
         }
 
 
