@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Zap, Calendar, MessageSquare, AlertTriangle, Settings as SettingsIcon, ScanLine, TrendingUp } from 'lucide-react';
 import Navigation from './components/layout/Navigation';
@@ -39,6 +38,10 @@ const App = () => {
     const [units, setUnits] = useState(() => localStorage.getItem('track_my_gains_units') || 'kg');
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [modal, setModal] = useState({ show: false, title: '', message: '', onConfirm: () => { } });
+
+    // New State for Daily Tracker
+    const [profile, setProfile] = useState(null);
+    const [nutritionLogs, setNutritionLogs] = useState([]);
 
 
     useEffect(() => {
@@ -88,6 +91,29 @@ const App = () => {
                 if (planError && planError.code === 'PGRST116') { // No rows found
                     await supabase.from('weekly_plan').insert({ user_id: userId, plan: WEEKLY_DEFAULT_PLAN });
                 }
+            }
+
+            // Fetch Profile
+            const { data: profileData } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', userId)
+                .single();
+
+            if (profileData) {
+                setProfile(profileData);
+            }
+
+            // Fetch Nutrition Logs
+            const { data: nutritionData, error: nutritionError } = await supabase
+                .from('daily_nutrition')
+                .select('*')
+                .eq('user_id', userId);
+
+            if (nutritionData) {
+                setNutritionLogs(nutritionData);
+            } else if (nutritionError) {
+                console.error("Error fetching nutrition:", nutritionError);
             }
         };
 
@@ -194,25 +220,6 @@ const App = () => {
 
     const handleSetWeeklyPlan = (newValueOrFn, shouldSyncToSession = true) => {
         setWeeklyPlan(currentPlan => {
-            // Calculate new state immediately using current scope 'currentPlan' (which is the latest from state updater)
-            // Wait, using the functional update form of setWeeklyPlan allows us to access the fresh state "currentPlan"
-            // But we need the result to pass to superset/logic.
-
-            // Re-evaluating the structure here.
-            // The original code used `weeklyPlan` from closure which might be stale in a callback.
-            // But `setWeeklyPlan` was called with `newPlan`.
-
-            // Let's resolve the value first.
-            // If newValueOrFn is a function, we need the *current* state.
-            // But we are outside the setter.
-            // The original code:
-            // const newPlan = typeof newValueOrFn === 'function' ? newValueOrFn(weeklyPlan) : newValueOrFn;
-            // setWeeklyPlan(newPlan);
-
-            // This relies on `weeklyPlan` being fresh. If `handleSetWeeklyPlan` is called from an effect or async (like `updateSession`),
-            // `weeklyPlan` in the closure might be stale.
-            // However, `updateSession` is recreated on every render? No, it's defined in the component body, so it closes over the *current* render's `weeklyPlan`.
-            // As long as `App` re-renders when `weeklyPlan` changes, it's fine.
 
             const newPlan = typeof newValueOrFn === 'function'
                 ? newValueOrFn(weeklyPlan)
@@ -241,7 +248,7 @@ const App = () => {
 
                 if (todaySession && todayPlan) {
                     // Check if we need to sync updates
-                    // We map session exercises and update them if they exist in the plan
+                    // We map session exercises and update them if they exist for the same name
                     let hasChanges = false;
 
                     const updatedExercises = todaySession.exercises.map(sessionEx => {
@@ -282,9 +289,6 @@ const App = () => {
                             exercises: [...updatedExercises, ...newExercises]
                         };
                         // Call updateSession but skip reverse sync
-                        // We must use setTimeout to break the render cycle if checks are strict, 
-                        // but here we are just calling a function.
-                        // However, updateSession sets state.
                         updateSession(newSession, false);
                     }
                 }
@@ -292,24 +296,44 @@ const App = () => {
 
             return newPlan;
         });
+    };
 
-        // The above `setWeeklyPlan` usage returns the new state, so it works as a setter.
-        // But verifying `updateSession` calls `handleSetWeeklyPlan` ...
-        // `handleSetWeeklyPlan(prevPlan => ...)`
-        // My implementation of `handleSetWeeklyPlan` above assumes it's just a function that calls `setWeeklyPlan`.
-        // The original code:
-        // const newPlan = ...; setWeeklyPlan(newPlan); ...
-        // If I wrap everything in `setWeeklyPlan(current => ...)` it might be cleaner for state updates,
-        // BUT `updateSession` calls `handleSetWeeklyPlan` expecting it to execute logic, not just return a state updater.
-        // Wait, `updateSession` calls: `handleSetWeeklyPlan(prevPlan => { ... })`.
-        // If `handleSetWeeklyPlan` is defined as:
-        // const handleSetWeeklyPlan = (newValueOrFn) => { const newPlan = ...; setWeeklyPlan(newPlan); ... }
-        // Then `newValueOrFn` is the function passed from `updateSession`.
-        // Calling `newValueOrFn(weeklyPlan)` uses the CLOSURE `weeklyPlan`.
-        // If `updateSession` runs, `weeklyPlan` might not be the absolute latest if multiple updates happened?
-        // Actually, `updateSession` runs in response to user interaction, so `weeklyPlan` should be fresh enough.
+    // New Log Meal Function
+    const handleLogMeal = async (mealData) => {
+        if (!session?.user?.id) return;
 
-        // Let's stick to the original structure but add the logic.
+        // Optimistic Update
+        const newLog = {
+            id: crypto.randomUUID(),
+            user_id: session.user.id,
+            date: new Date().toISOString().split('T')[0], // YYYY-MM-DD
+            meal_name: 'Scanned Meal',
+            calories: mealData.totals.calories,
+            protein: mealData.totals.protein,
+            carbs: mealData.totals.carbs,
+            fats: mealData.totals.fats,
+            foods: mealData.foods,
+            created_at: new Date().toISOString()
+        };
+
+        setNutritionLogs(prev => [...prev, newLog]);
+
+        const { error } = await supabase
+            .from('daily_nutrition')
+            .insert({
+                user_id: session.user.id,
+                date: newLog.date,
+                meal_name: newLog.meal_name,
+                calories: newLog.calories,
+                protein: newLog.protein,
+                carbs: newLog.carbs,
+                fats: newLog.fats,
+                foods: newLog.foods
+            });
+
+        if (error) {
+            console.error("Failed to log meal:", error);
+        }
     };
 
     const getTodayWorkout = () => {
@@ -383,7 +407,6 @@ const App = () => {
                             const { error } = await supabase.from('sessions').insert(newSession);
                             if (error) {
                                 console.error('Error marking plan as done:', error);
-                                // Rollback could be added here
                             }
                         }}
                         units={units}
@@ -401,7 +424,12 @@ const App = () => {
             case AppScreen.History:
                 return <HistoryPage sessions={sessions} />;
             case AppScreen.Scanner:
-                return <FoodScanner />;
+                return <FoodScanner
+                    onLogMeal={handleLogMeal}
+                    nutritionLogs={nutritionLogs}
+                    profile={profile}
+                    units={units}
+                />;
             case AppScreen.Settings:
                 return <Settings
                     isDarkMode={isDarkMode}
@@ -420,18 +448,20 @@ const App = () => {
                     onResetData={async () => {
                         confirmAction(
                             "Reset All Data?",
-                            "This will permanently delete your workout history and custom schedule. This action cannot be undone.",
+                            "This will permanently delete your workout history, custom schedule and nutrition logs. This action cannot be undone.",
                             async () => {
                                 if (session?.user?.id) {
                                     const { error: e1 } = await supabase.from('sessions').delete().eq('user_id', session.user.id);
                                     const { error: e2 } = await supabase.from('weekly_plan').delete().eq('user_id', session.user.id);
+                                    const { error: e3 } = await supabase.from('daily_nutrition').delete().eq('user_id', session.user.id);
 
-                                    if (e1 || e2) {
-                                        console.error("Reset error:", e1, e2);
+                                    if (e1 || e2 || e3) {
+                                        console.error("Reset error:", e1, e2, e3);
                                         alert("Failed to reset some data. Check console.");
                                     } else {
                                         // Reset local state only on success
                                         setSessions([]);
+                                        setNutritionLogs([]);
                                         setWeeklyPlan(WEEKLY_DEFAULT_PLAN);
 
                                         // Re-initialize default plan in DB

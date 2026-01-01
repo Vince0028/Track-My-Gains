@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { ChevronLeft, ChevronRight, Trash2, Check, CircleDashed, X, Loader2 } from 'lucide-react';
 import { MUSCLE_ICONS } from '../../constants';
@@ -134,6 +133,7 @@ const CalendarView = ({ sessions, onDeleteSession, weeklyPlan, onMarkComplete, u
 
                                 const daySessions = getSessionsForDay(day);
                                 const scheduled = getScheduledForDay(day);
+
                                 const isToday = day === new Date().getDate() &&
                                     currentDate.getMonth() === new Date().getMonth() &&
                                     currentDate.getFullYear() === new Date().getFullYear();
@@ -165,7 +165,16 @@ const CalendarView = ({ sessions, onDeleteSession, weeklyPlan, onMarkComplete, u
                                 return (
                                     <div
                                         key={day}
-                                        onClick={() => workoutData && setViewModal({ day, data: workoutData, isSession: hasSession })}
+                                        onClick={() => {
+                                            if (workoutData) {
+                                                setViewModal({
+                                                    day,
+                                                    data: workoutData || { title: 'Rest Day' },
+                                                    isSession: hasSession,
+                                                    dayName: new Date(currentDate.getFullYear(), currentDate.getMonth(), day).toLocaleDateString('en-US', { weekday: 'long' })
+                                                })
+                                            }
+                                        }}
                                         className={`min-h-[120px] p-3 organic-shape border transition-all duration-300 group relative flex flex-col justify-between cursor-pointer hover:translate-y-[-2px] hover:shadow-lg ${cellStyle}`}
                                     >
                                         <div className="flex justify-between items-start">
@@ -180,6 +189,7 @@ const CalendarView = ({ sessions, onDeleteSession, weeklyPlan, onMarkComplete, u
                                         </div>
 
                                         <div className="space-y-2 mt-2">
+                                            {/* Workout Title */}
                                             {workoutData && !workoutData.isRestDay && (
                                                 <div className="text-[9px] font-bold uppercase truncate opacity-80 pl-1 border-l-2 border-current">
                                                     {workoutData.title}
@@ -252,62 +262,70 @@ const CalendarView = ({ sessions, onDeleteSession, weeklyPlan, onMarkComplete, u
 
                         <div>
                             <div className="text-xs font-bold text-[var(--accent)] uppercase tracking-widest mb-1">
-                                {viewModal.data.dayName || new Date(currentDate.getFullYear(), currentDate.getMonth(), viewModal.day).toLocaleDateString('en-US', { weekday: 'long' })}
+                                {viewModal.dayName || new Date(currentDate.getFullYear(), currentDate.getMonth(), viewModal.day).toLocaleDateString('en-US', { weekday: 'long' })}
                             </div>
                             <div className="flex items-center gap-3">
-                                <h3 className="text-2xl font-bold">{viewModal.data.title}</h3>
+                                <h3 className="text-2xl font-bold">{viewModal.data?.title || 'Daily Summary'}</h3>
                             </div>
-                            <div className="flex items-center gap-2 text-sm text-[var(--text-secondary)] mt-1">
-                                {viewModal.isSession && viewModal.data.exercises.every(e => e.completed) ? (
-                                    <>
-                                        <Check size={14} className="text-emerald-500" />
-                                        <span className="text-emerald-500 font-bold">Completed Session</span>
-                                    </>
-                                ) : (viewModal.isSession && (viewModal.day === new Date().getDate() && currentDate.getMonth() === new Date().getMonth())) ? (
-                                    <>
-                                        <Loader2 size={14} className="text-yellow-500 animate-spin" />
-                                        <span className="text-yellow-500 font-bold">In Progress</span>
-                                    </>
-                                ) : viewModal.isSession ? (
-                                    <>
-                                        <Check size={14} className="text-emerald-500/50" />
-                                        <span className="text-emerald-500/70 font-bold">Session Recorded</span>
-                                    </>
-                                ) : (
-                                    <>
-                                        <CircleDashed size={14} />
-                                        <span>Scheduled Plan</span>
-                                    </>
-                                )}
-                            </div>
+
+
+                            {/* Session Status Badge */}
+                            {viewModal.data && viewModal.data.exercises && (
+                                <div className="flex items-center gap-2 text-sm text-[var(--text-secondary)] mt-1">
+                                    {viewModal.isSession && viewModal.data.exercises.every(e => e.completed) ? (
+                                        <>
+                                            <Check size={14} className="text-emerald-500" />
+                                            <span className="text-emerald-500 font-bold">Completed Session</span>
+                                        </>
+                                    ) : (viewModal.isSession && (viewModal.day === new Date().getDate() && currentDate.getMonth() === new Date().getMonth())) ? (
+                                        <>
+                                            <Loader2 size={14} className="text-yellow-500 animate-spin" />
+                                            <span className="text-yellow-500 font-bold">In Progress</span>
+                                        </>
+                                    ) : viewModal.isSession ? (
+                                        <>
+                                            <Check size={14} className="text-emerald-500/50" />
+                                            <span className="text-emerald-500/70 font-bold">Session Recorded</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <CircleDashed size={14} />
+                                            <span>Scheduled Plan</span>
+                                        </>
+                                    )}
+                                </div>
+                            )}
                         </div>
 
-                        <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
-                            {viewModal.data.exercises.map((ex, i) => (
-                                <div key={i} className={`flex items-center gap-4 p-3 organic-shape border ${viewModal.isSession && ex.completed ? 'bg-emerald-500/5 border-emerald-500/30' : 'bg-[var(--bg-primary)] border-[var(--border)]'}`}>
-                                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center p-1.5 ${viewModal.isSession ? 'bg-emerald-500/10 text-emerald-400' : 'bg-[var(--bg-secondary)] text-[var(--text-primary)]'}`}>
-                                        {MUSCLE_ICONS[ex.muscleGroup]}
-                                    </div>
-                                    <div className="flex-1">
-                                        <div className="font-bold text-sm flex items-center gap-2">
-                                            {ex.name}
-                                            {viewModal.isSession && ex.completed && <Check size={12} className="text-emerald-500" />}
+                        {/* Exercises List */}
+                        {viewModal.data && viewModal.data.exercises && (
+                            <div className="space-y-3 max-h-[40vh] overflow-y-auto pr-2 custom-scrollbar">
+                                {viewModal.data.exercises.map((ex, i) => (
+                                    <div key={i} className={`flex items-center gap-4 p-3 organic-shape border ${viewModal.isSession && ex.completed ? 'bg-emerald-500/5 border-emerald-500/30' : 'bg-[var(--bg-primary)] border-[var(--border)]'}`}>
+                                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center p-1.5 ${viewModal.isSession ? 'bg-emerald-500/10 text-emerald-400' : 'bg-[var(--bg-secondary)] text-[var(--text-primary)]'}`}>
+                                            {MUSCLE_ICONS[ex.muscleGroup]}
                                         </div>
-                                        <div className="text-xs text-[var(--text-secondary)] flex gap-3 mt-0.5">
-                                            <span className="font-medium bg-[var(--bg-secondary)] px-1.5 py-0.5 rounded text-[10px] border border-[var(--border)]">
-                                                {ex.sets} SETS
-                                            </span>
-                                            <span className="font-medium bg-[var(--bg-secondary)] px-1.5 py-0.5 rounded text-[10px] border border-[var(--border)]">
-                                                {ex.reps} REPS
-                                            </span>
-                                            <span className="font-medium bg-[var(--bg-secondary)] px-1.5 py-0.5 rounded text-[10px] border border-[var(--border)] text-[var(--accent)]">
-                                                {ex.weight} {units}
-                                            </span>
+                                        <div className="flex-1">
+                                            <div className="font-bold text-sm flex items-center gap-2">
+                                                {ex.name}
+                                                {viewModal.isSession && ex.completed && <Check size={12} className="text-emerald-500" />}
+                                            </div>
+                                            <div className="text-xs text-[var(--text-secondary)] flex gap-3 mt-0.5">
+                                                <span className="font-medium bg-[var(--bg-secondary)] px-1.5 py-0.5 rounded text-[10px] border border-[var(--border)]">
+                                                    {ex.sets} SETS
+                                                </span>
+                                                <span className="font-medium bg-[var(--bg-secondary)] px-1.5 py-0.5 rounded text-[10px] border border-[var(--border)]">
+                                                    {ex.reps} REPS
+                                                </span>
+                                                <span className="font-medium bg-[var(--bg-secondary)] px-1.5 py-0.5 rounded text-[10px] border border-[var(--border)] text-[var(--accent)]">
+                                                    {ex.weight} {units}
+                                                </span>
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                            ))}
-                        </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
