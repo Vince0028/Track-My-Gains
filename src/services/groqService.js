@@ -1,5 +1,12 @@
 const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY;
-const MODEL_NAME = "llama-3.2-90b-vision-preview"; // High-performance Vision Model
+
+// Prioritized list of Vision Models (Verified 2026)
+const VISION_MODELS = [
+    "meta-llama/llama-4-maverick-17b-128e-instruct", // Tier 1: Flagship Multimodal (Strongest)
+    "meta-llama/llama-4-scout-17b-16e-instruct",     // Tier 2: Efficient Multimodal
+    // "llama-3.2-90b-vision-preview" (Decommissioned)
+    // "llama-3.2-11b-vision-preview" (Decommissioned)
+];
 
 export async function analyzeFoodImage(base64Image, mode = 'food') {
     if (!GROQ_API_KEY) {
@@ -50,57 +57,71 @@ export async function analyzeFoodImage(base64Image, mode = 'food') {
                 ]
             }`;
 
-    try {
-        // Ensure base64 string is properly formatted (data:image/jpeg;base64,...)
-        const imageUrl = base64Image.startsWith('data:') ? base64Image : `data:image/jpeg;base64,${base64Image}`;
+    // Ensure base64 string is properly formatted
+    const imageUrl = base64Image.startsWith('data:') ? base64Image : `data:image/jpeg;base64,${base64Image}`;
 
-        const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-            method: "POST",
-            headers: {
-                "Authorization": `Bearer ${GROQ_API_KEY}`,
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                model: MODEL_NAME,
-                messages: [
-                    {
-                        role: "user",
-                        content: [
-                            {
-                                type: "text",
-                                text: mode === 'label' ? LABEL_PROMPT : FOOD_PROMPT
-                            },
-                            {
-                                type: "image_url",
-                                image_url: {
-                                    url: imageUrl
+    let lastError = null;
+
+    // Iterate through models for fallback
+    for (const modelName of VISION_MODELS) {
+        try {
+            console.log(`Attempting analysis with model: ${modelName}`);
+
+            const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${GROQ_API_KEY}`,
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    model: modelName,
+                    messages: [
+                        {
+                            role: "user",
+                            content: [
+                                {
+                                    type: "text",
+                                    text: mode === 'label' ? LABEL_PROMPT : FOOD_PROMPT
+                                },
+                                {
+                                    type: "image_url",
+                                    image_url: {
+                                        url: imageUrl
+                                    }
                                 }
-                            }
-                        ]
-                    }
-                ],
-                temperature: 0.1,
-                max_tokens: 1024,
-                response_format: { type: "json_object" }
-            })
-        });
+                            ]
+                        }
+                    ],
+                    temperature: 0.1,
+                    max_tokens: 1024,
+                    response_format: { type: "json_object" }
+                })
+            });
 
-        if (!response.ok) {
-            const errorData = await response.json();
-            console.error("Groq API Error Details:", errorData);
-            throw new Error(`Groq API Error: ${response.status} - ${errorData.error?.message || response.statusText}`);
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({})); // Safe parse
+                console.warn(`Groq API Error (${modelName}):`, response.status, errorData);
+                // Throw to trigger catch block and try next model
+                throw new Error(`Model ${modelName} failed: ${response.status} - ${errorData.error?.message || response.statusText}`);
+            }
+
+            const data = await response.json();
+            const content = data.choices[0].message.content;
+
+            // Clean up markdown
+            const jsonStr = content.replace(/```json/g, '').replace(/```/g, '').trim();
+
+            console.log(`Success with model: ${modelName}`);
+            return JSON.parse(jsonStr);
+
+        } catch (error) {
+            console.error(`Attempt failed for ${modelName}:`, error.message);
+            lastError = error;
+            // Continue to next model in the loop
         }
-
-        const data = await response.json();
-        const content = data.choices[0].message.content;
-
-        // Clean up markdown if model ignores instruction (less likely with json_mode but good safety)
-        const jsonStr = content.replace(/```json/g, '').replace(/```/g, '').trim();
-
-        return JSON.parse(jsonStr);
-
-    } catch (error) {
-        console.error("Vision Analysis Error:", error);
-        throw new Error("Failed to analyze food. " + error.message);
     }
+
+    // If loop finishes without returning, all models failed
+    console.error("All vision models failed.");
+    throw new Error("Failed to analyze food. All available AI models are currently busy or out of quota. Please try again later. (" + (lastError?.message || "Unknown Error") + ")");
 }
