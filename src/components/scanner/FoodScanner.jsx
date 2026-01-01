@@ -1,5 +1,5 @@
-import React, { useState, useRef } from 'react';
-import { Upload, Loader2, ScanLine, X, ChevronRight, PieChart, Flame, Beef, Wheat, Droplet } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Upload, Loader2, ScanLine, X, ChevronRight, PieChart, Flame, Beef, Wheat, Droplet, Camera, FlipHorizontal } from 'lucide-react';
 import { analyzeFoodImage } from '../../services/groqService';
 
 const FoodScanner = () => {
@@ -7,7 +7,19 @@ const FoodScanner = () => {
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState(null);
     const [error, setError] = useState('');
+    const [isCameraOpen, setIsCameraOpen] = useState(false);
+    const [isMirrored, setIsMirrored] = useState(true); // Default to mirrored for natural feel
+
     const fileInputRef = useRef(null);
+    const videoRef = useRef(null);
+    const streamRef = useRef(null);
+
+    // Stop camera when component unmounts
+    useEffect(() => {
+        return () => {
+            stopCamera();
+        };
+    }, []);
 
     const handleImageUpload = (e) => {
         const file = e.target.files[0];
@@ -20,6 +32,69 @@ const FoodScanner = () => {
             setError('');
         };
         reader.readAsDataURL(file);
+    };
+
+    const startCamera = async () => {
+        setError('');
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: 'environment' }
+            });
+            streamRef.current = stream;
+
+            // Auto-detect if we should mirror (User facing = mirror, Env facing = no mirror)
+            const videoTrack = stream.getVideoTracks()[0];
+            const settings = videoTrack.getSettings();
+            // If facingMode is available and is 'environment', don't mirror by default
+            if (settings.facingMode === 'environment') {
+                setIsMirrored(false);
+            } else {
+                setIsMirrored(true); // Webcams/Front cams usually better mirrored
+            }
+
+            setIsCameraOpen(true);
+            // Small delay to ensure video element is rendered
+            setTimeout(() => {
+                if (videoRef.current) {
+                    videoRef.current.srcObject = stream;
+                }
+            }, 100);
+        } catch (err) {
+            console.error("Camera error:", err);
+            setError("Unable to access camera. Please check permissions.");
+        }
+    };
+
+    const stopCamera = () => {
+        if (streamRef.current) {
+            streamRef.current.getTracks().forEach(track => track.stop());
+            streamRef.current = null;
+        }
+        setIsCameraOpen(false);
+    };
+
+    const capturePhoto = () => {
+        if (!videoRef.current) return;
+
+        const canvas = document.createElement('canvas');
+        canvas.width = videoRef.current.videoWidth;
+        canvas.height = videoRef.current.videoHeight;
+        const ctx = canvas.getContext('2d');
+
+        // If mirrored, we need to flip the capture too so it matches the preview OR capture it straight?
+        // Usually scanners capture 'reality' (straight), but if user frame aimed using mirror...
+        // Let's capture exactly what's on the video element (straight) to ensure text readability.
+        // Wait, if I mirror the video via CSS, the actual video data is NOT mirrored.
+        // So drawing video to canvas will be STRAIGHT (Readable Code). This is correct for Scanner.
+        // The Preview is Mirrored (Natural User Feel), Capture is Straight (Readability).
+
+        ctx.drawImage(videoRef.current, 0, 0);
+
+        const dataUrl = canvas.toDataURL('image/jpeg');
+        setImage(dataUrl);
+        stopCamera();
+        setResult(null);
+        setError('');
     };
 
     const handleAnalyze = async () => {
@@ -64,6 +139,7 @@ const FoodScanner = () => {
         setImage(null);
         setResult(null);
         setError('');
+        stopCamera();
         if (fileInputRef.current) {
             fileInputRef.current.value = '';
         }
@@ -83,9 +159,41 @@ const FoodScanner = () => {
                 {/* Main Card: Image & Upload */}
                 <div className="bg-[var(--bg-secondary)]/50 backdrop-blur-xl border border-[var(--border)] rounded-3xl overflow-hidden shadow-2xl relative group transition-all duration-500 hover:shadow-[var(--accent)]/10">
 
-                    {/* Image Area */}
-                    <div className={`aspect-video w-full bg-black/20 flex items-center justify-center relative overflow-hidden transition-all duration-500 ${image ? 'h-64' : 'h-80'}`}>
-                        {image ? (
+                    {/* Image Area / Camera View */}
+                    <div className={`aspect-video w-full bg-black/20 flex items-center justify-center relative overflow-hidden transition-all duration-500 ${image || isCameraOpen ? 'h-full min-h-[400px]' : 'h-80'}`}>
+                        {isCameraOpen ? (
+                            <div className="relative w-full h-full bg-black">
+                                <video
+                                    ref={videoRef}
+                                    autoPlay
+                                    playsInline
+                                    className={`w-full h-full object-cover transition-transform duration-300 ${isMirrored ? 'scale-x-[-1]' : ''}`}
+                                />
+                                {/* Camera Controls */}
+                                <div className="absolute bottom-6 left-0 right-0 flex items-center justify-center gap-8 z-20">
+                                    <button
+                                        onClick={stopCamera}
+                                        className="p-4 bg-white/10 backdrop-blur-md text-white rounded-full hover:bg-white/20 transition-all border border-white/10"
+                                    >
+                                        <X size={24} />
+                                    </button>
+                                    <button
+                                        onClick={capturePhoto}
+                                        className="w-20 h-20 rounded-full border-4 border-white flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-lg"
+                                    >
+                                        <div className="w-16 h-16 rounded-full bg-white transition-all active:scale-90" />
+                                    </button>
+                                    {/* Mirror Toggle */}
+                                    <button
+                                        onClick={() => setIsMirrored(!isMirrored)}
+                                        className={`p-4 backdrop-blur-md rounded-full transition-all border border-white/10 ${isMirrored ? 'bg-[var(--accent)]/80 text-white' : 'bg-white/10 text-white hover:bg-white/20'}`}
+                                        title="Flip Camera View"
+                                    >
+                                        <FlipHorizontal size={24} />
+                                    </button>
+                                </div>
+                            </div>
+                        ) : image ? (
                             <>
                                 <img src={image} alt="Food Preview" className="w-full h-full object-cover" />
                                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent pointer-events-none" />
@@ -97,15 +205,32 @@ const FoodScanner = () => {
                                 </button>
                             </>
                         ) : (
-                            <div
-                                onClick={() => fileInputRef.current?.click()}
-                                className="w-full h-full flex flex-col items-center justify-center cursor-pointer hover:bg-white/5 transition-colors group/upload"
-                            >
-                                <div className="w-20 h-20 bg-[var(--accent)]/10 border-2 border-[var(--accent)]/20 text-[var(--accent)] rounded-full flex items-center justify-center mb-6 group-hover/upload:scale-110 transition-transform duration-300 shadow-[0_0_30px_-5px_var(--accent)]">
-                                    <Upload size={32} />
+                            <div className="w-full h-full flex flex-col items-center justify-center p-8">
+                                <h3 className="text-xl font-bold text-[var(--text-primary)] mb-8">Choose an option</h3>
+
+                                <div className="flex gap-8 w-full max-w-md justify-center">
+                                    {/* Upload Option */}
+                                    <div
+                                        onClick={() => fileInputRef.current?.click()}
+                                        className="flex-1 flex flex-col items-center justify-center gap-4 p-6 rounded-2xl bg-[var(--bg-primary)]/40 border border-[var(--border)] hover:border-[var(--accent)] hover:bg-[var(--accent)]/5 cursor-pointer transition-all group/opt"
+                                    >
+                                        <div className="w-16 h-16 rounded-full bg-[var(--accent)]/10 text-[var(--accent)] flex items-center justify-center group-hover/opt:scale-110 transition-transform">
+                                            <Upload size={28} />
+                                        </div>
+                                        <span className="font-bold text-[var(--text-primary)]">Upload Photo</span>
+                                    </div>
+
+                                    {/* Camera Option */}
+                                    <div
+                                        onClick={startCamera}
+                                        className="flex-1 flex flex-col items-center justify-center gap-4 p-6 rounded-2xl bg-[var(--bg-primary)]/40 border border-[var(--border)] hover:border-[var(--accent)] hover:bg-[var(--accent)]/5 cursor-pointer transition-all group/opt"
+                                    >
+                                        <div className="w-16 h-16 rounded-full bg-[var(--accent)]/10 text-[var(--accent)] flex items-center justify-center group-hover/opt:scale-110 transition-transform">
+                                            <Camera size={28} />
+                                        </div>
+                                        <span className="font-bold text-[var(--text-primary)]">Open Camera</span>
+                                    </div>
                                 </div>
-                                <h3 className="text-xl font-bold text-[var(--text-primary)] mb-2">Upload Meal Photo</h3>
-                                <p className="text-[var(--text-secondary)] text-sm">Tap to browse your gallery</p>
                             </div>
                         )}
 
@@ -162,7 +287,7 @@ const FoodScanner = () => {
                     )}
 
                     {/* Action Button (Analyze) */}
-                    {image && !result && !loading && (
+                    {image && !result && !loading && !isCameraOpen && (
                         <div className="p-6 border-t border-[var(--border)] bg-[var(--bg-primary)]/30">
                             <button
                                 onClick={handleAnalyze}
