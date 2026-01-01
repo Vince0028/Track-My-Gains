@@ -308,10 +308,10 @@ const App = () => {
             user_id: session.user.id,
             date: new Date().toISOString().split('T')[0], // YYYY-MM-DD
             meal_name: 'Scanned Meal',
-            calories: mealData.totals.calories,
-            protein: mealData.totals.protein,
-            carbs: mealData.totals.carbs,
-            fats: mealData.totals.fats,
+            calories: Math.round(mealData.totals.calories),
+            protein: Math.round(mealData.totals.protein),
+            carbs: Math.round(mealData.totals.carbs),
+            fats: Math.round(mealData.totals.fats),
             foods: mealData.foods,
             created_at: new Date().toISOString()
         };
@@ -333,6 +333,9 @@ const App = () => {
 
         if (error) {
             console.error("Failed to log meal:", error);
+            alert(`Failed to save meal: ${error.message}`);
+            // Revert optimistic update on failure
+            setNutritionLogs(prev => prev.filter(l => l.id !== newLog.id));
         }
     };
 
