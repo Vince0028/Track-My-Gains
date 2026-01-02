@@ -155,7 +155,7 @@ Output format:
     ]
 }`;
 
-export async function analyzeImageWithGemini(base64Image, mode = 'food') {
+export async function analyzeImageWithGemini(base64Image, mode = 'food', weightHint = null) {
     if (!apiKey) {
         throw new Error("GEMINI API Key missing.");
     }
@@ -163,7 +163,12 @@ export async function analyzeImageWithGemini(base64Image, mode = 'food') {
     // Clean base64 string (remove data URL prefix if present)
     const base64Data = base64Image.replace(/^data:image\/\w+;base64,/, "");
 
-    const prompt = mode === 'label' ? LABEL_PROMPT : FOOD_PROMPT;
+    let prompt = mode === 'label' ? LABEL_PROMPT : FOOD_PROMPT;
+
+    // Add Weight Hint Constraint
+    if (mode === 'food' && weightHint) {
+        prompt += `\n\n**CRITICAL CONSTRAINT**: The user has weighed this plate. The TOTAL weight of all food items MUST sum approximately to **${weightHint}g**. Distribute this weight intelligently across the identified ingredients based on visual ratios.`;
+    }
     let lastError = null;
 
     for (const modelName of VISION_MODELS) {

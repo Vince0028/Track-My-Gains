@@ -8,7 +8,7 @@ const VISION_MODELS = [
     // "llama-3.2-11b-vision-preview" (Decommissioned)
 ];
 
-export async function analyzeFoodImage(base64Image, mode = 'food') {
+export async function analyzeFoodImage(base64Image, mode = 'food', weightHint = null) {
     if (!GROQ_API_KEY) {
         throw new Error("GROQ API Key missing.");
     }
@@ -36,7 +36,7 @@ export async function analyzeFoodImage(base64Image, mode = 'food') {
                 ]
             }`;
 
-    const FOOD_PROMPT = `You are a nutrition expert AI. 
+    const FOOD_PROMPT_BASE = `You are a nutrition expert AI. 
             Analyze the food image and return a STRICT JSON object.
 
             ANALYSIS STEPS:
@@ -63,6 +63,11 @@ export async function analyzeFoodImage(base64Image, mode = 'food') {
                     }
                 ]
             }`;
+
+    let FOOD_PROMPT = FOOD_PROMPT_BASE;
+    if (weightHint) {
+        FOOD_PROMPT += `\n\n**CRITICAL CONSTRAINT**: The user has weighed this plate. The TOTAL weight of all food items MUST sum approximately to **${weightHint}g**. Distribute this weight intelligently across the identified ingredients based on visual ratios.`;
+    }
 
     // Ensure base64 string is properly formatted
     const imageUrl = base64Image.startsWith('data:') ? base64Image : `data:image/jpeg;base64,${base64Image}`;

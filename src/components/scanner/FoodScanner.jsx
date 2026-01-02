@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Upload, Loader2, ScanLine, X, ChevronRight, PieChart, Flame, Beef, Wheat, Droplet, Camera, FlipHorizontal, CheckCircle2, Calendar as CalendarIcon, ChevronLeft, Utensils, ScanBarcode, Pencil, Info, Trash2 } from 'lucide-react';
+import { Upload, Loader2, ScanLine, X, ChevronRight, PieChart, Flame, Beef, Wheat, Droplet, Camera, FlipHorizontal, CheckCircle2, Calendar as CalendarIcon, ChevronLeft, Utensils, ScanBarcode, Pencil, Info, Trash2, Scale } from 'lucide-react';
 import { analyzeFood } from '../../services/scannerService';
 
 const FoodScanner = ({ onLogMeal, onDeleteLog, onUpdateLog, nutritionLogs = [], profile = null, units = 'kg' }) => {
@@ -7,6 +7,7 @@ const FoodScanner = ({ onLogMeal, onDeleteLog, onUpdateLog, nutritionLogs = [], 
     const [scanMode, setScanMode] = useState('food'); // 'food' | 'label'
     const [scanDate, setScanDate] = useState(new Date().toISOString().split('T')[0]); // Default to today
     const [showTips, setShowTips] = useState(false);
+    const [weightHint, setWeightHint] = useState(''); // New State for Weight Input
 
     // Scanner State
     const [image, setImage] = useState(null);
@@ -141,8 +142,8 @@ const FoodScanner = ({ onLogMeal, onDeleteLog, onUpdateLog, nutritionLogs = [], 
         setSaved(false);
 
         try {
-            // PASS THE MODE
-            const data = await analyzeFood(image, scanMode);
+            // PASS THE MODE AND WEIGHT HINT
+            const data = await analyzeFood(image, scanMode, weightHint);
 
             let foodsArray = [];
             if (data.foods && Array.isArray(data.foods)) foodsArray = data.foods;
@@ -604,7 +605,24 @@ const FoodScanner = ({ onLogMeal, onDeleteLog, onUpdateLog, nutritionLogs = [], 
                             )}
 
                             {image && !result && !loading && !isCameraOpen && (
-                                <div className="p-6 border-t border-[var(--border)] bg-[var(--bg-primary)]/30">
+                                <div className="p-6 border-t border-[var(--border)] bg-[var(--bg-primary)]/30 space-y-4">
+                                    {scanMode === 'food' && (
+                                        <div className="flex items-center gap-3 bg-[var(--bg-secondary)] px-4 py-3 rounded-xl border border-[var(--border)]">
+                                            <Scale size={20} className="text-[var(--text-secondary)]" />
+                                            <div className="flex-1">
+                                                <label className="text-[10px] font-bold text-[var(--accent)] uppercase tracking-widest block mb-1">Total Weight (g)</label>
+                                                <input
+                                                    type="number"
+                                                    placeholder="e.g. 500"
+                                                    value={weightHint}
+                                                    onChange={(e) => setWeightHint(e.target.value)}
+                                                    className="w-full bg-transparent font-bold text-[var(--text-primary)] placeholder:font-normal focus:outline-none"
+                                                />
+                                            </div>
+                                            <span className="text-xs font-bold text-[var(--text-secondary)]">Total</span>
+                                        </div>
+                                    )}
+
                                     <button onClick={handleAnalyze} className="w-full py-4 bg-[var(--accent)] hover:bg-[var(--accent)]/90 text-[var(--bg-primary)] font-black text-lg rounded-2xl shadow-lg shadow-[var(--accent)]/20 hover:shadow-[var(--accent)]/40 active:scale-[0.98] transition-all flex items-center justify-center gap-2 group">
                                         <ScanLine className="group-hover:rotate-180 transition-transform duration-500" /> Analyze Nutrition
                                     </button>
