@@ -466,7 +466,7 @@ const App = () => {
                     units={units}
                 />;
             case AppScreen.AICoach:
-                return <AICoach />;
+                return <AICoach sessions={sessions} />;
             case AppScreen.History:
                 return <HistoryPage sessions={sessions} />;
             case AppScreen.Scanner:

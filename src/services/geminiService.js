@@ -93,3 +93,129 @@ USER PROFILE:
         }
     }
 }
+
+// --- GEMINI VISION IMPLEMENTATION ---
+
+// Vision Models (Strongest to Fastest)
+const VISION_MODELS = [
+    "gemini-2.0-pro-exp-02-05", // Experimental Pro (Strongest if available)
+    "gemini-1.5-pro",           // Stable Pro (High Quality)
+    "gemini-2.0-flash",         // V2 Flash
+    "gemini-1.5-flash"          // Stable Flash (Fast)
+];
+
+const LABEL_PROMPT = `You are a nutrition expert AI. 
+Analyze the nutrition label text in the image and return a STRICT JSON object.
+
+RULES:
+1. **PRIORITIZE PER SERVING**: ALWAYS extract values from the "Per Serving" column. IGNORE "Per 100g" unless it is the ONLY column available.
+2. **PRESERVE DECIMALS**: Return the EXACT decimal numbers found (e.g., if text says "2.6g", return 2.6, NOT 2).
+3. **STRICT OCR**: Read the exact numbers for Calories, Protein, Carbs, and Fats.
+4. **FORMAT**: Return raw JSON only.
+
+Output format:
+{
+    "foods": [
+        {
+            "name": "Scanned Label Item",
+            "calories": 100,
+            "protein": "2.6g",
+            "carbs": "10.5g",
+            "fats": "5.2g",
+            "serving_size": "1 serving"
+        }
+    ]
+}`;
+
+const FOOD_PROMPT = `You are a nutrition expert AI. 
+Analyze the food image and return a STRICT JSON object.
+
+ANALYSIS STEPS:
+1. **TEXTURE & STATE**: Identify if the food is solid, liquid, or powder.
+2. **VOLUME ESTIMATION**: Compare size to reference objects in the image (e.g., hands, fingers, utensils, bottles).
+   - If a hand is visible, use it to gauge portion size.
+   - Analyze plate size (small side plate vs large dinner plate) to scale the food correctly.
+3. **CALCULATION**: Use the estimated volume/weight to calculate precise macros.
+
+RULES:
+1. **VISUAL PRECISION**: Don't guess generic values; derive them from the visual volume.
+2. **FORMAT**: Return raw JSON only.
+
+Output format:
+{
+    "foods": [
+        {
+            "name": "Food Name",
+            "calories": 100,
+            "protein": "20g",
+            "carbs": "10g",
+            "fats": "5g",
+            "serving_size": "1 bowl (approx 300g)"
+        }
+    ]
+}`;
+
+export async function analyzeImageWithGemini(base64Image, mode = 'food') {
+    if (!apiKey) {
+        throw new Error("GEMINI API Key missing.");
+    }
+
+    // Clean base64 string (remove data URL prefix if present)
+    const base64Data = base64Image.replace(/^data:image\/\w+;base64,/, "");
+
+    const prompt = mode === 'label' ? LABEL_PROMPT : FOOD_PROMPT;
+    let lastError = null;
+
+    for (const modelName of VISION_MODELS) {
+        try {
+            console.log(`Attempting Gemini analysis with model: ${modelName}`);
+
+            // Note: genAI is initialized at top of file
+            const model = genAI.getGenerativeModel({ model: modelName });
+
+            const result = await model.generateContent({
+                contents: [
+                    {
+                        role: "user",
+                        parts: [
+                            { text: prompt },
+                            {
+                                inlineData: {
+                                    mimeType: "image/jpeg", // Assuming JPEG for simplicity, or we could detect
+                                    data: base64Data
+                                }
+                            }
+                        ]
+                    }
+                ],
+                generationConfig: {
+                    responseMimeType: "application/json", // Force JSON mode
+                }
+            });
+
+            const response = await result.response;
+            const text = response.text();
+
+            console.log(`Success with Gemini model: ${modelName}`);
+
+            // Parse JSON
+            try {
+                // Remove any markdown code blocks if the model puts them in despite mimeType
+                const cleanJson = text.replace(/```json/g, '').replace(/```/g, '').trim();
+                return JSON.parse(cleanJson);
+            } catch (jsonError) {
+                console.warn(`Gemini JSON parse error for ${modelName}:`, jsonError);
+                // Try next model if JSON is malformed
+                throw new Error("Malformed JSON response");
+            }
+
+        } catch (error) {
+            console.error(`Gemini Attempt failed for ${modelName}:`, error.message);
+            lastError = error;
+            // Explicitly continue to check next available model
+            continue;
+        }
+    }
+
+    throw new Error("All Gemini vision models failed: " + (lastError?.message || "Unknown error"));
+}

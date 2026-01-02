@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Upload, Loader2, ScanLine, X, ChevronRight, PieChart, Flame, Beef, Wheat, Droplet, Camera, FlipHorizontal, CheckCircle2, Calendar as CalendarIcon, ChevronLeft, Utensils, ScanBarcode, Pencil, Info, Trash2 } from 'lucide-react';
-import { analyzeFoodImage } from '../../services/groqService';
+import { analyzeFood } from '../../services/scannerService';
 
 const FoodScanner = ({ onLogMeal, onDeleteLog, onUpdateLog, nutritionLogs = [], profile = null, units = 'kg' }) => {
     const [activeTab, setActiveTab] = useState('scan'); // 'scan' | 'diary'
@@ -142,7 +142,7 @@ const FoodScanner = ({ onLogMeal, onDeleteLog, onUpdateLog, nutritionLogs = [], 
 
         try {
             // PASS THE MODE
-            const data = await analyzeFoodImage(image, scanMode);
+            const data = await analyzeFood(image, scanMode);
 
             let foodsArray = [];
             if (data.foods && Array.isArray(data.foods)) foodsArray = data.foods;

@@ -2,9 +2,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, User, Bot, Sparkles, Loader2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
-import { askCoach } from '../../services/geminiService';
+import { chatWithGroq } from '../../services/groqService';
 
-const AICoach = () => {
+const AICoach = ({ sessions = [] }) => {
     const [messages, setMessages] = useState([
         { id: '1', role: 'coach', text: "Yo! I'm your Gym Bro. Let's get massive. Ask me about your split, form, or macros. What are we crushing today?" }
     ]);
@@ -39,6 +39,30 @@ const AICoach = () => {
         fetchProfile();
     }, []);
 
+    const calculateHistorySummary = () => {
+        if (!sessions || sessions.length === 0) return null;
+
+        const totalWorkouts = sessions.length;
+        const lastWorkout = sessions.sort((a, b) => new Date(b.date) - new Date(a.date))[0];
+        const lastDate = new Date(lastWorkout.date).toLocaleDateString();
+
+        // Calculate simplified consistency (sessions in last 30 days)
+        const now = new Date();
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(now.getDate() - 30);
+
+        const recentSessions = sessions.filter(s => new Date(s.date) >= thirtyDaysAgo);
+        const consistencyRating = recentSessions.length > 12 ? "High (Beast Mode)" : recentSessions.length > 4 ? "Moderate (Getting There)" : "Low (Needs Motivation)";
+
+        return {
+            totalWorkouts,
+            lastWorkoutDate: lastDate,
+            recentSessionCount: recentSessions.length,
+            consistencyRating,
+            lastWorkoutName: lastWorkout.title || "Unknown Workout"
+        };
+    };
+
     const handleSend = async () => {
         if (!input.trim() || loading) return;
 
@@ -47,7 +71,8 @@ const AICoach = () => {
         setInput('');
         setLoading(true);
 
-        const response = await askCoach(input, profile);
+        const historySummary = calculateHistorySummary();
+        const response = await chatWithGroq(input, profile, historySummary);
         const coachMsg = { id: (Date.now() + 1).toString(), role: 'coach', text: response || '' };
         setMessages(prev => [...prev, coachMsg]);
         setLoading(false);
