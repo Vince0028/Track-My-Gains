@@ -577,6 +577,29 @@ const App = () => {
                             }
                         );
                     }}
+                    onDeleteAccount={async () => {
+                        confirmAction(
+                            "DELETE PERMANENTLY?",
+                            "Are you sure? This will WIPE all your data, profile, and effectively remove your account from our records. You will need to sign up again.",
+                            async () => {
+                                if (session?.user?.id) {
+                                    // 1. Wipe Data
+                                    await supabase.from('sessions').delete().eq('user_id', session.user.id);
+                                    await supabase.from('weekly_plan').delete().eq('user_id', session.user.id);
+                                    await supabase.from('daily_nutrition').delete().eq('user_id', session.user.id);
+
+                                    // 2. Wipe Profile (Soft Delete of Account Identity)
+                                    await supabase.from('profiles').delete().eq('id', session.user.id);
+
+                                    // 3. Forced Sign Out
+                                    const { error } = await supabase.auth.signOut();
+                                    if (error) console.error("Sign out error:", error);
+                                    setSession(null);
+                                    window.location.reload(); // Hard refresh to clear any lingering state
+                                }
+                            }
+                        );
+                    }}
                 />;
             default:
                 return <Dashboard sessions={sessions} todayWorkout={getTodayWorkout()} onUpdateSession={updateSession} units={units} />;

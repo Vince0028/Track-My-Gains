@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { User, Scale, Shield, FileText, LogOut, ChevronRight, Moon, Sun, Trash2, X, Lock, Activity, Heart, Ruler, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { supabase } from '../../services/supabaseClient';
 
-const Settings = ({ isDarkMode, toggleTheme, confirmAction, onSignOut, onResetData, userEmail, units, toggleUnits }) => {
+const Settings = ({ isDarkMode, toggleTheme, confirmAction, onSignOut, onResetData, onDeleteAccount, userEmail, units, toggleUnits }) => {
     const [infoModal, setInfoModal] = useState(null);
     const [identityModalOpen, setIdentityModalOpen] = useState(false);
     const [loading, setLoading] = useState(false);
@@ -269,6 +269,14 @@ const Settings = ({ isDarkMode, toggleTheme, confirmAction, onSignOut, onResetDa
                     >
                         <Trash2 size={16} />
                         Reset Account Data
+                    </button>
+
+                    <button
+                        onClick={onDeleteAccount}
+                        className="w-full flex items-center justify-center gap-2 p-4 bg-rose-600/20 border border-rose-600/40 organic-shape text-rose-600 font-bold hover:bg-rose-600 hover:text-white transition-organic text-sm"
+                    >
+                        <Shield size={16} />
+                        Delete Account (Permanent)
                     </button>
 
                     <div className="text-center space-y-2 mt-8">
