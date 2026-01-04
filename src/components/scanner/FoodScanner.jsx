@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Upload, Loader2, ScanLine, X, ChevronRight, PieChart, Flame, Beef, Wheat, Droplet, Camera, FlipHorizontal, CheckCircle2, Calendar as CalendarIcon, ChevronLeft, Utensils, ScanBarcode, Pencil, Info, Trash2, Scale } from 'lucide-react';
+import { Upload, Loader2, ScanLine, X, ChevronRight, PieChart, Flame, Beef, Wheat, Droplet, Camera, FlipHorizontal, CheckCircle2, Calendar as CalendarIcon, ChevronLeft, Utensils, ScanBarcode, Pencil, Info, Trash2, Scale, Save } from 'lucide-react';
 import { analyzeFood } from '../../services/scannerService';
 
 const FoodScanner = ({ onLogMeal, onDeleteLog, onUpdateLog, nutritionLogs = [], profile = null, units = 'kg' }) => {
@@ -21,6 +21,8 @@ const FoodScanner = ({ onLogMeal, onDeleteLog, onUpdateLog, nutritionLogs = [], 
     // Calendar State
     const [currentDate, setCurrentDate] = useState(new Date());
     const [viewModal, setViewModal] = useState(null);
+    const [editState, setEditState] = useState(null); // { logId, foodIndex }
+    const [editValues, setEditValues] = useState({}); // { name, calories, protein, carbs, fats }
     const cameraSectionRef = useRef(null);
 
     // Auto-scroll to camera when opened
@@ -271,11 +273,88 @@ const FoodScanner = ({ onLogMeal, onDeleteLog, onUpdateLog, nutritionLogs = [], 
             // Update the local modal view
             setViewModal(prev => {
                 const newLogs = prev.logs.filter(l => l.id !== logId);
-                const newTotal = newLogs.reduce((sum, l) => sum + (l.calories || 0), 0);
+                const newTotals = calculateDailyTotals(newLogs);
                 if (newLogs.length === 0) return null; // Close if empty
-                return { ...prev, logs: newLogs, totalCals: newTotal };
+                return { ...prev, logs: newLogs, ...newTotals };
             });
         }
+    };
+
+    // New: Edit Logic
+    const handleEditClick = (log, foodIndex, food) => {
+        setEditState({ logId: log.id, foodIndex });
+        setEditValues({
+            name: food.name,
+            calories: Math.round((parseInt(food.calories) || 0) * (food.quantity || 1)),
+            protein: ((parseFloat(food.protein) || 0) * (food.quantity || 1)).toFixed(1),
+            carbs: ((parseFloat(food.carbs) || 0) * (food.quantity || 1)).toFixed(1),
+            fats: ((parseFloat(food.fats) || 0) * (food.quantity || 1)).toFixed(1)
+        });
+    };
+
+    const handleCancelEdit = () => {
+        setEditState(null);
+        setEditValues({});
+    };
+
+    const handleSaveEdit = async () => {
+        if (!editState || !onUpdateLog) return;
+
+        const { logId, foodIndex } = editState;
+        const log = viewModal.logs.find(l => l.id === logId);
+        if (!log) return;
+
+        const updatedFoods = [...log.foods];
+        const currentQty = updatedFoods[foodIndex].quantity || 1;
+
+        // The user edits the TOTAL values. We must divide by quantity to store the correct "per unit" values.
+        updatedFoods[foodIndex] = {
+            ...updatedFoods[foodIndex],
+            name: editValues.name,
+            quantity: currentQty, // Preserve formatting quantity
+            calories: (parseInt(editValues.calories) || 0) / currentQty,
+            protein: (parseFloat(editValues.protein) || 0) / currentQty,
+            carbs: (parseFloat(editValues.carbs) || 0) / currentQty,
+            fats: (parseFloat(editValues.fats) || 0) / currentQty
+        };
+
+        const newTotals = updatedFoods.reduce((acc, f) => {
+            const q = f.quantity || 1;
+            return {
+                calories: acc.calories + (parseInt(f.calories) || 0) * q,
+                protein: acc.protein + (parseFloat(f.protein) || 0) * q,
+                carbs: acc.carbs + (parseFloat(f.carbs) || 0) * q,
+                fats: acc.fats + (parseFloat(f.fats) || 0) * q,
+            };
+        }, { calories: 0, protein: 0, carbs: 0, fats: 0 });
+
+        const updatedLog = {
+            ...log,
+            foods: updatedFoods,
+            calories: newTotals.calories,
+            protein: newTotals.protein,
+            carbs: newTotals.carbs,
+            fats: newTotals.fats
+        };
+
+        await onUpdateLog(logId, updatedLog);
+
+        setViewModal(prev => {
+            const newLogs = prev.logs.map(l => l.id === logId ? updatedLog : l);
+            const dailyTotals = calculateDailyTotals(newLogs);
+            return { ...prev, logs: newLogs, ...dailyTotals };
+        });
+
+        handleCancelEdit();
+    };
+
+    const calculateDailyTotals = (logs) => {
+        return logs.reduce((acc, log) => ({
+            totalCals: acc.totalCals + (log.calories || 0),
+            totalProtein: acc.totalProtein + (log.protein || 0),
+            totalCarbs: acc.totalCarbs + (log.carbs || 0),
+            totalFats: acc.totalFats + (log.fats || 0)
+        }), { totalCals: 0, totalProtein: 0, totalCarbs: 0, totalFats: 0 });
     };
 
 
@@ -333,11 +412,11 @@ const FoodScanner = ({ onLogMeal, onDeleteLog, onUpdateLog, nutritionLogs = [], 
 
                             const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
                             const logs = nutritionLogs.filter(l => l.date === dateStr);
-                            const totalCals = logs.reduce((sum, l) => sum + (l.calories || 0), 0);
+                            const dailyTotals = calculateDailyTotals(logs);
 
                             const hasLogs = logs.length > 0;
-                            const isOver = totalCals > targetCalories * 1.1;
-                            const isGood = totalCals >= targetCalories * 0.9 && !isOver;
+                            const isOver = dailyTotals.totalCals > targetCalories * 1.1;
+                            const isGood = dailyTotals.totalCals >= targetCalories * 0.9 && !isOver;
 
                             // Color Logic
                             let bgClass = "bg-[var(--bg-primary)]";
@@ -363,14 +442,14 @@ const FoodScanner = ({ onLogMeal, onDeleteLog, onUpdateLog, nutritionLogs = [], 
                             return (
                                 <div
                                     key={day}
-                                    onClick={() => hasLogs && setViewModal({ day, logs, totalCals, dateStr })}
+                                    onClick={() => hasLogs && setViewModal({ day, logs, totalCals: dailyTotals.totalCals, totalProtein: dailyTotals.totalProtein, totalCarbs: dailyTotals.totalCarbs, totalFats: dailyTotals.totalFats, dateStr })}
                                     className={`aspect-square rounded-xl border ${borderClass} ${bgClass} p-2 flex flex-col items-center justify-between cursor-pointer hover:brightness-110 transition-all`}
                                 >
                                     <span className={`text-sm font-bold ${hasLogs ? textClass : 'opacity-50'}`}>{day}</span>
                                     {hasLogs && (
                                         <div className="flex flex-col items-center">
                                             <Flame size={12} className={`fill-current mb-0.5 ${textClass}`} />
-                                            <span className={`text-[10px] font-black ${textClass}`}>{totalCals}</span>
+                                            <span className={`text-[10px] font-black ${textClass}`}>{dailyTotals.totalCals}</span>
                                         </div>
                                     )}
                                 </div>
@@ -413,12 +492,20 @@ const FoodScanner = ({ onLogMeal, onDeleteLog, onUpdateLog, nutritionLogs = [], 
 
                                 <div>
                                     <div className="text-xs font-bold text-[var(--accent)] uppercase tracking-widest mb-1">{viewModal.dateStr}</div>
-                                    <h3 className="text-2xl font-bold flex items-center gap-2">
-                                        Diary Entry
+                                    <div className="flex items-center justify-between mb-4">
+                                        <h3 className="text-2xl font-bold flex items-center gap-2">
+                                            Diary Entry
+                                        </h3>
                                         <span className={`text-sm px-2 py-0.5 rounded-full border ${viewModal.totalCals > targetCalories ? 'border-rose-500 text-rose-500 bg-rose-500/10' : 'border-emerald-500 text-emerald-500 bg-emerald-500/10'}`}>
-                                            {viewModal.totalCals} / {targetCalories} kcal
+                                            {Math.round(viewModal.totalCals)} / {targetCalories} kcal
                                         </span>
-                                    </h3>
+                                    </div>
+                                    {/* Daily Macro Summary */}
+                                    <div className="flex justify-between bg-[var(--bg-primary)] p-3 rounded-xl border border-[var(--border)]">
+                                        <MacroRing label="Protein" value={viewModal.totalProtein} color="text-emerald-400" icon={<Beef size={14} />} />
+                                        <MacroRing label="Carbs" value={viewModal.totalCarbs} color="text-amber-400" icon={<Wheat size={14} />} />
+                                        <MacroRing label="Fats" value={viewModal.totalFats} color="text-rose-400" icon={<Droplet size={14} />} />
+                                    </div>
                                 </div>
 
                                 <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-2 custom-scrollbar">
@@ -443,24 +530,72 @@ const FoodScanner = ({ onLogMeal, onDeleteLog, onUpdateLog, nutritionLogs = [], 
                                             {/* Logged Foods List */}
                                             {log.foods && (
                                                 <div className="space-y-1 mb-3">
-                                                    {log.foods.map((food, fi) => (
-                                                        <div key={fi} className="flex flex-col gap-1 border-b border-[var(--border)]/50 pb-2 last:border-0">
-                                                            <div className="flex justify-between items-center">
-                                                                <span className="text-sm font-medium">{food.name}</span>
-                                                                <span className="text-xs opacity-70 font-mono">{Math.round((parseInt(food.calories) || 0) * (food.quantity || 1))} cal</span>
-                                                            </div>
-                                                            <div className="flex items-center justify-between">
-                                                                <div className="flex items-center gap-2 bg-[var(--bg-secondary)] rounded-md px-1 py-0.5 border border-[var(--border)]">
-                                                                    <button onClick={(e) => { e.stopPropagation(); handleUpdateLogQuantity(log, fi, -0.5); }} className="w-5 h-5 flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-primary)] rounded font-bold">-</button>
-                                                                    <span className="text-[10px] font-bold w-6 text-center">{food.quantity || 1}x</span>
-                                                                    <button onClick={(e) => { e.stopPropagation(); handleUpdateLogQuantity(log, fi, 0.5); }} className="w-5 h-5 flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-primary)] rounded font-bold">+</button>
+                                                    {log.foods.map((food, fi) => {
+                                                        const isEditing = editState && editState.logId === log.id && editState.foodIndex === fi;
+
+                                                        if (isEditing) {
+                                                            return (
+                                                                <div key={fi} className="flex flex-col gap-2 p-2 bg-[var(--bg-secondary)] border border-[var(--accent)] rounded-lg">
+                                                                    <input
+                                                                        type="text"
+                                                                        value={editValues.name}
+                                                                        onChange={(e) => setEditValues({ ...editValues, name: e.target.value })}
+                                                                        className="bg-transparent font-bold text-sm border-b border-[var(--border)] focus:border-[var(--accent)] outline-none"
+                                                                        placeholder="Food Name"
+                                                                    />
+                                                                    <div className="grid grid-cols-4 gap-2">
+                                                                        <div className="flex flex-col">
+                                                                            <label className="text-[8px] text-[var(--text-secondary)] uppercase">Cal</label>
+                                                                            <input type="number" value={editValues.calories} onChange={(e) => setEditValues({ ...editValues, calories: e.target.value })} className="bg-transparent text-xs font-mono border-b border-[var(--border)] focus:border-[var(--accent)] outline-none" />
+                                                                        </div>
+                                                                        <div className="flex flex-col">
+                                                                            <label className="text-[8px] text-emerald-500 uppercase">Pro</label>
+                                                                            <input type="number" value={editValues.protein} onChange={(e) => setEditValues({ ...editValues, protein: e.target.value })} className="bg-transparent text-xs font-mono border-b border-emerald-500/30 focus:border-emerald-500 outline-none text-emerald-500" />
+                                                                        </div>
+                                                                        <div className="flex flex-col">
+                                                                            <label className="text-[8px] text-amber-500 uppercase">Carb</label>
+                                                                            <input type="number" value={editValues.carbs} onChange={(e) => setEditValues({ ...editValues, carbs: e.target.value })} className="bg-transparent text-xs font-mono border-b border-amber-500/30 focus:border-amber-500 outline-none text-amber-500" />
+                                                                        </div>
+                                                                        <div className="flex flex-col">
+                                                                            <label className="text-[8px] text-rose-500 uppercase">Fat</label>
+                                                                            <input type="number" value={editValues.fats} onChange={(e) => setEditValues({ ...editValues, fats: e.target.value })} className="bg-transparent text-xs font-mono border-b border-rose-500/30 focus:border-rose-500 outline-none text-rose-500" />
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="flex gap-2 mt-1">
+                                                                        <button onClick={handleSaveEdit} className="flex-1 bg-emerald-500/20 text-emerald-500 hover:bg-emerald-500 hover:text-white rounded py-1 flex items-center justify-center transition-colors"><Save size={14} /></button>
+                                                                        <button onClick={handleCancelEdit} className="flex-1 bg-rose-500/20 text-rose-500 hover:bg-rose-500 hover:text-white rounded py-1 flex items-center justify-center transition-colors"><X size={14} /></button>
+                                                                    </div>
                                                                 </div>
-                                                                <div className="text-[10px] text-[var(--text-secondary)]">
-                                                                    {(parseFloat(food.protein) * (food.quantity || 1)).toFixed(1)}P • {(parseFloat(food.carbs) * (food.quantity || 1)).toFixed(1)}C • {(parseFloat(food.fats) * (food.quantity || 1)).toFixed(1)}F
+                                                            );
+                                                        }
+
+                                                        return (
+                                                            <div key={fi} className="flex flex-col gap-1 border-b border-[var(--border)]/50 pb-2 last:border-0 group/item">
+                                                                <div className="flex justify-between items-center">
+                                                                    <span className="text-sm font-medium">{food.name}</span>
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className="text-xs opacity-70 font-mono">{Math.round((parseInt(food.calories) || 0) * (food.quantity || 1))} cal</span>
+                                                                        <button
+                                                                            onClick={(e) => { e.stopPropagation(); handleEditClick(log, fi, food); }}
+                                                                            className="p-1 text-[var(--text-secondary)] hover:text-[var(--accent)] opacity-0 group-hover/item:opacity-100 transition-opacity"
+                                                                        >
+                                                                            <Pencil size={12} />
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
+                                                                <div className="flex items-center justify-between">
+                                                                    <div className="flex items-center gap-2 bg-[var(--bg-secondary)] rounded-md px-1 py-0.5 border border-[var(--border)]">
+                                                                        <button onClick={(e) => { e.stopPropagation(); handleUpdateLogQuantity(log, fi, -0.5); }} className="w-5 h-5 flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-primary)] rounded font-bold">-</button>
+                                                                        <span className="text-[10px] font-bold w-6 text-center">{food.quantity || 1}x</span>
+                                                                        <button onClick={(e) => { e.stopPropagation(); handleUpdateLogQuantity(log, fi, 0.5); }} className="w-5 h-5 flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-primary)] rounded font-bold">+</button>
+                                                                    </div>
+                                                                    <div className="text-[10px] text-[var(--text-secondary)]">
+                                                                        {(parseFloat(food.protein) * (food.quantity || 1)).toFixed(1)}P • {(parseFloat(food.carbs) * (food.quantity || 1)).toFixed(1)}C • {(parseFloat(food.fats) * (food.quantity || 1)).toFixed(1)}F
+                                                                    </div>
                                                                 </div>
                                                             </div>
-                                                        </div>
-                                                    ))}
+                                                        );
+                                                    })}
                                                 </div>
                                             )}
 

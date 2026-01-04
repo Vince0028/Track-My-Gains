@@ -31,8 +31,10 @@ I use this for my daily workouts.
 ## ✨ Features
 
 - **🏋️‍♂️ Weekly Planner**: Manage your recurring split (Push/Pull/Legs, etc.) with a drag-and-drop feel.
-- **🍎 Food Scanner**: Scan your meals with AI to instantly track calories and macros.
+- **🚀 Smart Onboarding**: Intelligent tour that adapts to new users vs. returning veterans.
+- **🍎 Precision Food Scanner**: AI meal analysis with optional weight input for higher accuracy.
 - **🤖 AI Gym Bro Coach**: A truthful, factual AI assistant powered by Gemini. No fluff, just gains.
+- **🛡️ Account Control**: Full data management with options to soft reset or permanently delete your account.
 - **📊 Interactive Dashboard**: Visualizes your weekly streak, active sessions, and progress.
 - **📅 Historical Calendar**: Track every session you've ever crushed.
 - **🌗 Organic UI**: Smooth animations, dark mode default, and responsive design.

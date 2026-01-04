@@ -1,21 +1,90 @@
 import React, { useState, useMemo } from 'react';
-import { ChevronLeft, ChevronRight, TrendingUp, Filter, X, Menu, ChevronDown } from 'lucide-react';
+import { ChevronLeft, ChevronRight, TrendingUp, Filter, X, Menu, ChevronDown, Search } from 'lucide-react';
+import { getMuscleGroup } from '../../constants';
 
-const HistoryPage = ({ sessions }) => {
+const HistoryPage = ({ sessions, weeklyPlan }) => {
     const [currentPage, setCurrentPage] = useState(0);
     const [selectedWeekIndex, setSelectedWeekIndex] = useState(0);
     const [filterExercise, setFilterExercise] = useState('all');
+    const [filterMuscle, setFilterMuscle] = useState('all');
+    const [searchQuery, setSearchQuery] = useState('');
     const [showFilterMenu, setShowFilterMenu] = useState(false);
     const weeksPerPage = 4;
 
-    // Calculate all weeks from sessions
+    // Calculate all weeks from sessions (including missed ones)
     const allWeeks = useMemo(() => {
-        if (sessions.length === 0) return [];
+        // 1. Determine Date Range
+        const now = new Date();
+        now.setHours(0, 0, 0, 0);
 
-        // Group sessions by week
+        let startDate = new Date();
+        if (sessions.length > 0) {
+            // Start from earliest session
+            const earliest = new Date(Math.min(...sessions.map(s => new Date(s.date).getTime())));
+            startDate = earliest;
+        } else {
+            // Default to 4 weeks ago if no sessions
+            startDate.setDate(now.getDate() - 28);
+        }
+        startDate.setHours(0, 0, 0, 0);
+
+        // 2. Generate Full List of Days (Recorded OR Missed)
+        const combinedSessions = [];
+        const tempDate = new Date(startDate);
+
+        // Helper to get local YYYY-MM-DD strings
+        const getLocalDateStr = (date) => {
+            const d = new Date(date);
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        };
+
+        // Iterate from start date until today
+        while (tempDate <= now) {
+            const dateStr = getLocalDateStr(tempDate);
+            const foundSession = sessions.find(s => getLocalDateStr(s.date) === dateStr);
+
+            // Only consider the session "found" if it actually has exercises.
+            // If it's empty, we treat it as if it doesn't exist so we can show the "Missed Plan" instead.
+            if (foundSession && foundSession.exercises && foundSession.exercises.length > 0) {
+                combinedSessions.push(foundSession);
+            } else if (weeklyPlan) {
+                // Check if we missed a planned workout
+                const dayName = tempDate.toLocaleDateString('en-US', { weekday: 'long' });
+                const plan = weeklyPlan[dayName];
+
+                if (plan && !plan.isRestDay && plan.exercises && plan.exercises.length > 0) {
+                    // Create a "Missed" session
+                    combinedSessions.push({
+                        id: `missed-${dateStr}`,
+                        date: new Date(tempDate).toISOString(),
+                        isMissed: true,
+                        title: plan.title || 'Missed Workout',
+                        exercises: plan.exercises.map(ex => ({
+                            name: ex.name,
+                            sets: ex.sets,
+                            reps: ex.reps,
+                            weight: ex.weight || 0,
+                            completed: false, // Explicitly failed
+                            muscleGroup: ex.muscleGroup
+                        }))
+                    });
+                }
+            }
+            tempDate.setDate(tempDate.getDate() + 1);
+        }
+
+        // 3. Reverse to show newest first for processing
+        combinedSessions.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+        if (combinedSessions.length === 0) return [];
+
+        // 4. Group sessions by week
         const weekMap = new Map();
 
-        sessions.forEach(session => {
+        combinedSessions.forEach(session => {
             const sessionDate = new Date(session.date);
             const weekStart = new Date(sessionDate);
             const day = weekStart.getDay();
@@ -30,35 +99,43 @@ const HistoryPage = ({ sessions }) => {
                     startDate: weekStart,
                     exercises: [],
                     totalExercises: 0,
-                    completedExercises: 0
+                    completedExercises: 0,
+                    sessions: []
                 });
             }
 
             const week = weekMap.get(weekKey);
+            week.sessions.push(session); // Keep track of raw sessions too
 
             // Aggregate exercise data
             if (session.exercises) {
                 session.exercises.forEach(exercise => {
+                    const normalizedName = exercise.name.trim();
+
                     week.totalExercises += 1;
-                    if (exercise.completed) {
+                    if (exercise.completed && !session.isMissed) {
                         week.completedExercises += 1;
                     }
 
-                    const existingExercise = week.exercises.find(ex => ex.name === exercise.name);
+                    const existingExercise = week.exercises.find(ex => ex.name === normalizedName);
                     if (existingExercise) {
-                        existingExercise.completedReps += exercise.reps || 0;
-                        existingExercise.completedSets += exercise.sets || 0;
+                        if (!session.isMissed) {
+                            existingExercise.completedReps += exercise.reps || 0;
+                            existingExercise.completedSets += exercise.sets || 0;
+                            existingExercise.timesCompleted += (exercise.completed ? 1 : 0);
+                        }
                         existingExercise.count += 1;
-                        if (exercise.completed) existingExercise.timesCompleted += 1;
+                        existingExercise.missedCount += (session.isMissed ? 1 : 0);
                     } else {
                         week.exercises.push({
-                            name: exercise.name,
+                            name: normalizedName,
                             plannedSets: exercise.sets || 0,
                             plannedReps: exercise.reps || 0,
-                            completedSets: exercise.sets || 0,
-                            completedReps: exercise.reps || 0,
-                            timesCompleted: exercise.completed ? 1 : 0,
-                            count: 1
+                            completedSets: !session.isMissed ? (exercise.sets || 0) : 0,
+                            completedReps: !session.isMissed ? (exercise.reps || 0) : 0,
+                            timesCompleted: (!session.isMissed && exercise.completed) ? 1 : 0,
+                            count: 1,
+                            missedCount: session.isMissed ? 1 : 0
                         });
                     }
                 });
@@ -75,21 +152,26 @@ const HistoryPage = ({ sessions }) => {
             return {
                 ...week,
                 weekNumber: weeksArray.length - index,
-                consistencyScore: isNaN(consistencyScore) ? 0 : consistencyScore
+                consistencyScore: isNaN(consistencyScore) ? 0 : consistencyScore,
+                // Add a "Missed Sessions" count for UI if needed
+                missedSessionsCount: week.sessions.filter(s => s.isMissed).length
             };
         });
-    }, [sessions]);
+    }, [sessions, weeklyPlan]);
 
-    // Get all unique exercises for filter
+    // Get all unique exercises for filter (filtered by muscle)
     const allExercises = useMemo(() => {
         const exerciseSet = new Set();
         allWeeks.forEach(week => {
             week.exercises.forEach(ex => {
-                exerciseSet.add(ex.name);
+                // Filter by muscle first if selected
+                if (filterMuscle === 'all' || getMuscleGroup(ex.name) === filterMuscle) {
+                    exerciseSet.add(ex.name);
+                }
             });
         });
         return Array.from(exerciseSet).sort();
-    }, [allWeeks]);
+    }, [allWeeks, filterMuscle]);
 
     // Filter exercises in selected week
     const selectedWeek = useMemo(() => {
@@ -98,15 +180,29 @@ const HistoryPage = ({ sessions }) => {
 
         if (!week) return null;
 
-        if (filterExercise === 'all') {
-            return week;
+        let filteredExercises = week.exercises;
+
+        // 1. Muscle Filter
+        if (filterMuscle !== 'all') {
+            filteredExercises = filteredExercises.filter(ex => getMuscleGroup(ex.name) === filterMuscle);
+        }
+
+        // 2. Exercise Filter
+        if (filterExercise !== 'all') {
+            filteredExercises = filteredExercises.filter(ex => ex.name === filterExercise);
+        }
+
+        // 3. Search Query
+        if (searchQuery) {
+            const query = searchQuery.toLowerCase();
+            filteredExercises = filteredExercises.filter(ex => ex.name.toLowerCase().includes(query));
         }
 
         return {
             ...week,
-            exercises: week.exercises.filter(ex => ex.name === filterExercise)
+            exercises: filteredExercises
         };
-    }, [allWeeks, selectedWeekIndex, filterExercise]);
+    }, [allWeeks, selectedWeekIndex, filterExercise, filterMuscle, searchQuery]);
 
     const paginatedWeeks = useMemo(() => {
         return allWeeks.slice(
@@ -139,6 +235,40 @@ const HistoryPage = ({ sessions }) => {
                 <p className="text-[var(--text-secondary)]">Track all your training sessions and progress</p>
             </div>
 
+            {/* Search & Muscle Filters */}
+            <div className="space-y-4">
+                {/* Search Bar */}
+                <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)]" size={18} />
+                    <input
+                        type="text"
+                        placeholder="Search exercises..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg py-3 pl-10 pr-4 text-white placeholder-[var(--text-secondary)] focus:outline-none focus:border-[var(--accent)] transition-all"
+                    />
+                </div>
+
+                {/* Muscle Group Chips */}
+                <div className="flex gap-2 overflow-x-auto pb-2 custom-scrollbar">
+                    {['all', 'Shoulder', 'Chest', 'Back', 'Legs', 'Bicep', 'Tricep', 'Core'].map(muscle => (
+                        <button
+                            key={muscle}
+                            onClick={() => {
+                                setFilterMuscle(muscle);
+                                setFilterExercise('all'); // Reset specific exercise when changing muscle group
+                            }}
+                            className={`px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-all border ${filterMuscle === muscle
+                                ? 'bg-[var(--accent)] text-[var(--bg-primary)] border-[var(--accent)]'
+                                : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)] border-[var(--border)] hover:border-[var(--accent)]'
+                                }`}
+                        >
+                            {muscle === 'all' ? 'All Muscles' : muscle}
+                        </button>
+                    ))}
+                </div>
+            </div>
+
             {/* Mobile Filter Section */}
             <div className="md:hidden space-y-3">
                 <button
@@ -159,8 +289,8 @@ const HistoryPage = ({ sessions }) => {
                                 setShowFilterMenu(false);
                             }}
                             className={`block w-full text-left px-3 py-2 rounded transition-organic ${filterExercise === 'all'
-                                    ? 'bg-[var(--accent)] text-[var(--bg-primary)]'
-                                    : 'bg-[var(--bg-primary)] text-[var(--text-secondary)] hover:bg-[var(--bg-primary)]/80'
+                                ? 'bg-[var(--accent)] text-[var(--bg-primary)]'
+                                : 'bg-[var(--bg-primary)] text-[var(--text-secondary)] hover:bg-[var(--bg-primary)]/80'
                                 }`}
                         >
                             All Exercises
@@ -173,8 +303,8 @@ const HistoryPage = ({ sessions }) => {
                                     setShowFilterMenu(false);
                                 }}
                                 className={`block w-full text-left px-3 py-2 rounded transition-organic ${filterExercise === exercise
-                                        ? 'bg-[var(--accent)] text-[var(--bg-primary)]'
-                                        : 'bg-[var(--bg-primary)] text-[var(--text-secondary)] hover:bg-[var(--bg-primary)]/80'
+                                    ? 'bg-[var(--accent)] text-[var(--bg-primary)]'
+                                    : 'bg-[var(--bg-primary)] text-[var(--text-secondary)] hover:bg-[var(--bg-primary)]/80'
                                     }`}
                             >
                                 {exercise}
@@ -204,8 +334,8 @@ const HistoryPage = ({ sessions }) => {
                                 setShowFilterMenu(false);
                             }}
                             className={`block w-full text-left px-3 py-2 rounded mb-2 transition-organic ${filterExercise === 'all'
-                                    ? 'bg-[var(--accent)] text-[var(--bg-primary)]'
-                                    : 'text-[var(--text-secondary)] hover:bg-[var(--bg-primary)]'
+                                ? 'bg-[var(--accent)] text-[var(--bg-primary)]'
+                                : 'text-[var(--text-secondary)] hover:bg-[var(--bg-primary)]'
                                 }`}
                         >
                             All Exercises
@@ -218,8 +348,8 @@ const HistoryPage = ({ sessions }) => {
                                     setShowFilterMenu(false);
                                 }}
                                 className={`block w-full text-left px-3 py-2 rounded mb-2 transition-organic ${filterExercise === exercise
-                                        ? 'bg-[var(--accent)] text-[var(--bg-primary)]'
-                                        : 'text-[var(--text-secondary)] hover:bg-[var(--bg-primary)]'
+                                    ? 'bg-[var(--accent)] text-[var(--bg-primary)]'
+                                    : 'text-[var(--text-secondary)] hover:bg-[var(--bg-primary)]'
                                     }`}
                             >
                                 {exercise}
@@ -238,8 +368,8 @@ const HistoryPage = ({ sessions }) => {
                             key={idx}
                             onClick={() => setSelectedWeekIndex(currentPage * weeksPerPage + idx)}
                             className={`p-3 rounded-lg transition-all text-sm font-medium ${selectedWeekIndex === currentPage * weeksPerPage + idx
-                                    ? 'bg-[var(--accent)] text-[var(--bg-primary)] shadow-lg'
-                                    : 'bg-[var(--bg-primary)] text-[var(--text-secondary)] hover:bg-[var(--bg-primary)]/80'
+                                ? 'bg-[var(--accent)] text-[var(--bg-primary)] shadow-lg'
+                                : 'bg-[var(--bg-primary)] text-[var(--text-secondary)] hover:bg-[var(--bg-primary)]/80'
                                 }`}
                         >
                             <div className="font-bold">Week {week.weekNumber}</div>
@@ -297,6 +427,11 @@ const HistoryPage = ({ sessions }) => {
                                 {selectedWeek.consistencyScore}%
                             </div>
                             <div className="text-[var(--text-secondary)] text-sm">Consistency</div>
+                            {selectedWeek.missedSessionsCount > 0 && (
+                                <div className="text-rose-500 text-xs font-bold mt-1">
+                                    {selectedWeek.missedSessionsCount} Missed Workout{selectedWeek.missedSessionsCount !== 1 ? 's' : ''}
+                                </div>
+                            )}
                         </div>
                     </div>
 
