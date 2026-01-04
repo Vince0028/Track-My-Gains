@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Upload, Loader2, ScanLine, X, ChevronRight, PieChart, Flame, Beef, Wheat, Droplet, Camera, FlipHorizontal, CheckCircle2, Calendar as CalendarIcon, ChevronLeft, Utensils, ScanBarcode, Pencil, Info, Trash2, Scale, Save } from 'lucide-react';
+import { Upload, Loader2, ScanLine, X, ChevronRight, PieChart, Flame, Beef, Wheat, Droplet, Camera, FlipHorizontal, CheckCircle2, Calendar as CalendarIcon, ChevronLeft, Utensils, ScanBarcode, Pencil, Info, Trash2, Scale, Save, History, Search, Plus } from 'lucide-react';
 import { analyzeFood } from '../../services/scannerService';
 
 const FoodScanner = ({ onLogMeal, onDeleteLog, onUpdateLog, nutritionLogs = [], profile = null, units = 'kg' }) => {
@@ -8,6 +8,8 @@ const FoodScanner = ({ onLogMeal, onDeleteLog, onUpdateLog, nutritionLogs = [], 
     const [scanDate, setScanDate] = useState(new Date().toISOString().split('T')[0]); // Default to today
     const [showTips, setShowTips] = useState(false);
     const [weightHint, setWeightHint] = useState(''); // New State for Weight Input
+    const [showHistoryModal, setShowHistoryModal] = useState(false);
+    const [historySearchQuery, setHistorySearchQuery] = useState('');
 
     // Scanner State
     const [image, setImage] = useState(null);
@@ -357,6 +359,108 @@ const FoodScanner = ({ onLogMeal, onDeleteLog, onUpdateLog, nutritionLogs = [], 
         }), { totalCals: 0, totalProtein: 0, totalCarbs: 0, totalFats: 0 });
     };
 
+    // --- History / Past Meals Logic ---
+    const getSmartMealName = (log) => {
+        if (log.meal_name === 'Scanned Meal' && log.foods && log.foods.length > 0) {
+            // Group duplicate items by normalized name
+            const grouped = log.foods.reduce((acc, food) => {
+                const key = food.name.trim().toLowerCase();
+                if (!acc[key]) {
+                    acc[key] = {
+                        name: food.name.trim(), // Keep original case of first occurrence
+                        count: 0,
+                        serving: food.serving_size
+                    };
+                }
+                acc[key].count += (food.quantity || 1);
+                return acc;
+            }, {});
+
+            return Object.values(grouped).map(item => {
+                const qtyStr = item.count % 1 === 0 ? item.count : item.count.toFixed(1);
+                const servingStr = item.serving ? ` (${item.serving})` : '';
+                return `${qtyStr}x ${item.name}${servingStr}`;
+            }).join(', ');
+        }
+        return log.meal_name;
+    };
+
+    // Helper to get a stable key for deduplication (ignoring quantity)
+    const getCanonicalMealKey = (log) => {
+        const normalize = (str) => str.toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ').trim();
+
+        if (log.meal_name === 'Scanned Meal' && log.foods && log.foods.length > 0) {
+            // Sor food names to handle order differences: "Apple, Banana" == "Banana, Apple"
+            return log.foods
+                .map(f => normalize(f.name))
+                .sort()
+                .join('|');
+        }
+        return normalize(log.meal_name);
+    };
+
+    const uniquePastMeals = React.useMemo(() => {
+        const unique = new Map();
+        [...nutritionLogs].sort((a, b) => new Date(b.created_at || b.date) - new Date(a.created_at || a.date)).forEach(log => {
+            // Use canonical key (food names only) to dedupe "1x Item" vs "2x Item"
+            const key = getCanonicalMealKey(log);
+
+            if (!unique.has(key)) {
+                // Store the log with the smart name injected
+                unique.set(key, { ...log, displayName: getSmartMealName(log) });
+            }
+        });
+        return Array.from(unique.values());
+    }, [nutritionLogs]);
+
+    const filteredHistory = uniquePastMeals.filter(m =>
+        m.displayName.toLowerCase().includes(historySearchQuery.toLowerCase())
+    );
+
+    const handleAddFromHistory = async (pastMeal) => {
+        if (!onLogMeal || !viewModal) return;
+
+        // Construct payload compatible with App.jsx handleLogMeal
+        // App.jsx expects { date, totals: { calories, protein... }, foods, ... }
+        const payload = {
+            ...pastMeal,
+            meal_name: pastMeal.displayName || pastMeal.meal_name, // Use the smart name for the new entry
+            date: viewModal.dateStr,
+            totals: {
+                calories: pastMeal.calories,
+                protein: pastMeal.protein,
+                carbs: pastMeal.carbs,
+                fats: pastMeal.fats
+            }
+        };
+
+        // 1. Call Parent Log Function (Updates DB + App State)
+        await onLogMeal(payload);
+
+        // 2. Optimistically update the VIEW MODAL list so user sees it instantly
+        // We need a temp ID for key purposes until refresh, ideally.
+        const tempLog = {
+            ...payload,
+            id: `temp-${Date.now()}`, // Temporary ID
+            // Flatten macros for display
+            calories: payload.totals.calories,
+            protein: payload.totals.protein,
+            carbs: payload.totals.carbs,
+            fats: payload.totals.fats
+        };
+
+        setViewModal(prev => {
+            const newLogs = [...prev.logs, tempLog];
+            const dailyTotals = calculateDailyTotals(newLogs);
+            return {
+                ...prev,
+                logs: newLogs,
+                ...dailyTotals
+            };
+        });
+
+        setShowHistoryModal(false);
+    };
 
     // --- Render Helpers ---
     const getDaysInMonth = (date) => new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
@@ -500,6 +604,15 @@ const FoodScanner = ({ onLogMeal, onDeleteLog, onUpdateLog, nutritionLogs = [], 
                                             {Math.round(viewModal.totalCals)} / {targetCalories} kcal
                                         </span>
                                     </div>
+
+                                    {/* Add From History Button */}
+                                    <button
+                                        onClick={() => setShowHistoryModal(true)}
+                                        className="w-full mb-4 py-3 bg-[var(--bg-primary)] border border-dashed border-[var(--accent)] text-[var(--accent)] rounded-xl font-bold text-sm hover:bg-[var(--accent)]/5 hover:border-solid transition-all flex items-center justify-center gap-2"
+                                    >
+                                        <History size={16} /> Add from History
+                                    </button>
+
                                     {/* Daily Macro Summary */}
                                     <div className="flex justify-between bg-[var(--bg-primary)] p-3 rounded-xl border border-[var(--border)]">
                                         <MacroRing label="Protein" value={viewModal.totalProtein} color="text-emerald-400" icon={<Beef size={14} />} />
@@ -613,6 +726,53 @@ const FoodScanner = ({ onLogMeal, onDeleteLog, onUpdateLog, nutritionLogs = [], 
                                             </div>
                                         </div>
                                     ))}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* History Modal Overlay - Moved to Correct Place */}
+                    {showHistoryModal && (
+                        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 modal-overlay animate-in fade-in duration-200">
+                            <div className="bg-[var(--bg-secondary)] organic-shape organic-border subtle-depth p-6 max-w-sm w-full space-y-4 shadow-2xl relative">
+                                <button onClick={() => setShowHistoryModal(false)} className="absolute top-4 right-4 p-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)]"><X size={20} /></button>
+                                <h3 className="text-xl font-bold">Past Meals</h3>
+
+                                {/* Search */}
+                                <div className="relative">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)]" size={16} />
+                                    <input
+                                        type="text"
+                                        placeholder="Search history..."
+                                        value={historySearchQuery}
+                                        onChange={(e) => setHistorySearchQuery(e.target.value)}
+                                        className="w-full bg-[var(--bg-primary)] border border-[var(--border)] rounded-lg py-2 pl-9 pr-4 text-sm focus:outline-none focus:border-[var(--accent)] text-[var(--text-primary)]"
+                                    />
+                                </div>
+
+                                {/* List */}
+                                <div className="space-y-2 max-h-[50vh] overflow-y-auto pr-2 custom-scrollbar">
+                                    {filteredHistory.map((meal, idx) => (
+                                        <button
+                                            key={idx}
+                                            onClick={() => handleAddFromHistory(meal)}
+                                            className="w-full text-left p-3 bg-[var(--bg-primary)] organic-shape border border-[var(--border)] hover:border-[var(--accent)] transition-all group"
+                                        >
+                                            <div className="flex justify-between items-start mb-1">
+                                                <span className="font-bold text-sm truncate pr-2 text-[var(--text-primary)]">{meal.displayName}</span>
+                                                <span className="text-[var(--accent)] font-bold text-xs">{meal.calories}</span>
+                                            </div>
+                                            <div className="flex justify-between text-[10px] text-[var(--text-secondary)]">
+                                                <span>{meal.protein}P • {meal.carbs}C • {meal.fats}F</span>
+                                                <span className="group-hover:text-[var(--accent)] opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                                                    <Plus size={10} /> Add
+                                                </span>
+                                            </div>
+                                        </button>
+                                    ))}
+                                    {filteredHistory.length === 0 && (
+                                        <p className="text-center text-[var(--text-secondary)] text-xs py-4">No matching meals found.</p>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -847,8 +1007,9 @@ const FoodScanner = ({ onLogMeal, onDeleteLog, onUpdateLog, nutritionLogs = [], 
                         )}
                     </div>
                 </>
-            )}
-        </div>
+            )
+            }
+        </div >
     );
 };
 
