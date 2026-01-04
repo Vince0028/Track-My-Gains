@@ -687,7 +687,6 @@ const FoodScanner = ({ onLogMeal, onDeleteLog, onUpdateLog, nutritionLogs = [], 
                                                                 <div className="flex justify-between items-center">
                                                                     <span className="text-sm font-medium">{food.name}</span>
                                                                     <div className="flex items-center gap-2">
-                                                                        <span className="text-xs opacity-70 font-mono">{Math.round((parseInt(food.calories) || 0) * (food.quantity || 1))} cal</span>
                                                                         <button
                                                                             onClick={(e) => { e.stopPropagation(); handleEditClick(log, fi, food); }}
                                                                             className="p-1 text-[var(--text-secondary)] hover:text-[var(--accent)] opacity-0 group-hover/item:opacity-100 transition-opacity"
@@ -701,9 +700,6 @@ const FoodScanner = ({ onLogMeal, onDeleteLog, onUpdateLog, nutritionLogs = [], 
                                                                         <button onClick={(e) => { e.stopPropagation(); handleUpdateLogQuantity(log, fi, -0.5); }} className="w-5 h-5 flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-primary)] rounded font-bold">-</button>
                                                                         <span className="text-[10px] font-bold w-6 text-center">{food.quantity || 1}x</span>
                                                                         <button onClick={(e) => { e.stopPropagation(); handleUpdateLogQuantity(log, fi, 0.5); }} className="w-5 h-5 flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-primary)] rounded font-bold">+</button>
-                                                                    </div>
-                                                                    <div className="text-[10px] text-[var(--text-secondary)]">
-                                                                        {(parseFloat(food.protein) * (food.quantity || 1)).toFixed(1)}P • {(parseFloat(food.carbs) * (food.quantity || 1)).toFixed(1)}C • {(parseFloat(food.fats) * (food.quantity || 1)).toFixed(1)}F
                                                                     </div>
                                                                 </div>
                                                             </div>
