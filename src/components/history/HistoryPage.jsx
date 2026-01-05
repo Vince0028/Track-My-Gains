@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { ChevronLeft, ChevronRight, TrendingUp, Filter, X, Menu, ChevronDown, Search } from 'lucide-react';
+import { ChevronLeft, ChevronRight, TrendingUp, Filter, X, Menu, ChevronDown, Search, AlertCircle } from 'lucide-react';
 import { getMuscleGroup } from '../../constants';
 
 const HistoryPage = ({ sessions, weeklyPlan }) => {
@@ -56,11 +56,14 @@ const HistoryPage = ({ sessions, weeklyPlan }) => {
                 const plan = weeklyPlan[dayName];
 
                 if (plan && !plan.isRestDay && plan.exercises && plan.exercises.length > 0) {
-                    // Create a "Missed" session
+                    const isToday = dateStr === getLocalDateStr(now);
+
+                    // Create a "Missed" session (or Pending if it's today)
                     combinedSessions.push({
                         id: `missed-${dateStr}`,
                         date: new Date(tempDate).toISOString(),
-                        isMissed: true,
+                        isMissed: !isToday,
+                        isPending: isToday,
                         title: plan.title || 'Missed Workout',
                         exercises: plan.exercises.map(ex => ({
                             name: ex.name,
@@ -270,7 +273,7 @@ const HistoryPage = ({ sessions, weeklyPlan }) => {
             </div>
 
             {/* Mobile Filter Section */}
-            <div className="md:hidden space-y-3">
+            <div className="md:hidden space-y-3 relative z-50">
                 <button
                     onClick={() => setShowFilterMenu(!showFilterMenu)}
                     className="flex items-center justify-between w-full text-left bg-[var(--bg-secondary)] p-3 rounded-lg organic-border"
@@ -282,36 +285,60 @@ const HistoryPage = ({ sessions, weeklyPlan }) => {
                 </button>
 
                 {showFilterMenu && (
-                    <div className="space-y-2 animate-in slide-in-from-top-2 duration-200">
-                        <button
-                            onClick={() => {
-                                setFilterExercise('all');
-                                setShowFilterMenu(false);
-                            }}
-                            className={`block w-full text-left px-3 py-2 rounded transition-organic ${filterExercise === 'all'
-                                ? 'bg-[var(--accent)] text-[var(--bg-primary)]'
-                                : 'bg-[var(--bg-primary)] text-[var(--text-secondary)] hover:bg-[var(--bg-primary)]/80'
-                                }`}
-                        >
-                            All Exercises
-                        </button>
-                        {allExercises.map(exercise => (
+                    <div className="absolute top-full left-0 right-0 mt-2 bg-[var(--bg-secondary)] organic-shape organic-border p-3 subtle-depth shadow-2xl animate-in fade-in slide-in-from-top-2 duration-200">
+                        <div className="max-h-[300px] overflow-y-auto custom-scrollbar">
                             <button
-                                key={exercise}
                                 onClick={() => {
-                                    setFilterExercise(exercise);
+                                    setFilterExercise('all');
                                     setShowFilterMenu(false);
                                 }}
-                                className={`block w-full text-left px-3 py-2 rounded transition-organic ${filterExercise === exercise
+                                className={`block w-full text-left px-3 py-2 rounded transition-organic ${filterExercise === 'all'
                                     ? 'bg-[var(--accent)] text-[var(--bg-primary)]'
                                     : 'bg-[var(--bg-primary)] text-[var(--text-secondary)] hover:bg-[var(--bg-primary)]/80'
                                     }`}
                             >
-                                {exercise}
+                                All Exercises
                             </button>
-                        ))}
+                            {allExercises.map(exercise => (
+                                <button
+                                    key={exercise}
+                                    onClick={() => {
+                                        setFilterExercise(exercise);
+                                        setShowFilterMenu(false);
+                                    }}
+                                    className={`block w-full text-left px-3 py-2 rounded transition-organic mt-1 ${filterExercise === exercise
+                                        ? 'bg-[var(--accent)] text-[var(--bg-primary)]'
+                                        : 'bg-[var(--bg-primary)] text-[var(--text-secondary)] hover:bg-[var(--bg-primary)]/80'
+                                        }`}
+                                >
+                                    {exercise}
+                                </button>
+                            ))}
+                        </div>
                     </div>
                 )}
+            </div>
+
+            {/* Mobile Week Selector */}
+            <div className="md:hidden mb-4">
+                <h3 className="text-[var(--text-secondary)] text-xs font-bold uppercase tracking-widest mb-2">Select Week</h3>
+                <div className="flex gap-2 overflow-x-auto pb-2 custom-scrollbar">
+                    {paginatedWeeks.map((week, idx) => (
+                        <button
+                            key={idx}
+                            onClick={() => setSelectedWeekIndex(currentPage * weeksPerPage + idx)}
+                            className={`flex flex-col items-center justify-center min-w-[100px] p-3 rounded-lg border transition-all ${selectedWeekIndex === currentPage * weeksPerPage + idx
+                                ? 'bg-[var(--accent)] text-[var(--bg-primary)] border-[var(--accent)] shadow-lg'
+                                : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)] border-[var(--border)]'
+                                }`}
+                        >
+                            <span className="text-sm font-bold whitespace-nowrap">Week {week.weekNumber}</span>
+                            <span className="text-[10px] opacity-80 whitespace-nowrap">
+                                {week.startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                            </span>
+                        </button>
+                    ))}
+                </div>
             </div>
 
             {/* Desktop Filter Section */}
@@ -430,6 +457,20 @@ const HistoryPage = ({ sessions, weeklyPlan }) => {
                             {selectedWeek.missedSessionsCount > 0 && (
                                 <div className="text-rose-500 text-xs font-bold mt-1">
                                     {selectedWeek.missedSessionsCount} Missed Workout{selectedWeek.missedSessionsCount !== 1 ? 's' : ''}
+                                </div>
+                            )}
+
+                            {/* Detailed List of Missed Workouts */}
+                            {selectedWeek.sessions.filter(s => s.isMissed).length > 0 && (
+                                <div className="mt-2 flex flex-col items-end gap-1">
+                                    {selectedWeek.sessions.filter(s => s.isMissed).map((session, i) => (
+                                        <div key={i} className="flex items-center gap-1.5 bg-rose-500/10 text-rose-500 px-2 py-1 rounded-md text-[10px] font-medium border border-rose-500/20">
+                                            <AlertCircle size={10} />
+                                            <span>
+                                                {new Date(session.date).toLocaleDateString('en-US', { weekday: 'short' })}: {session.title}
+                                            </span>
+                                        </div>
+                                    ))}
                                 </div>
                             )}
                         </div>
