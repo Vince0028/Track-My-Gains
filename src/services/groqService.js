@@ -8,7 +8,7 @@ const VISION_MODELS = [
     // "llama-3.2-11b-vision-preview" (Decommissioned)
 ];
 
-export async function analyzeFoodImage(base64Image, mode = 'food', weightHint = null) {
+export async function analyzeFoodImage(base64Image, mode = 'food', weightHint = null, userProfile = null) {
     if (!GROQ_API_KEY) {
         throw new Error("GROQ API Key missing.");
     }
@@ -39,21 +39,23 @@ export async function analyzeFoodImage(base64Image, mode = 'food', weightHint = 
     const FOOD_PROMPT_BASE = `You are a nutrition expert AI. 
             Analyze the food image and return a STRICT JSON object.
 
-            ANALYSIS STEPS:
-            1. **TEXTURE & STATE**: Identify if the food is solid, liquid, or powder.
-            2. **VOLUME ESTIMATION**: Compare size to reference objects in the image (e.g., hands, fingers, utensils, bottles).
-               - If a hand is visible, use it to gauge portion size.
-               - Analyze plate size (small side plate vs large dinner plate) to scale the food correctly.
-            3. **CALCULATION**: Use the estimated volume/weight to calculate precise macros.
-            
+            ANALYSIS CHAIN OF THOUGHT:
+            1. **IDENTIFY & SEGMENT**: List every distinct component. If mixed (e.g. Fried Rice), estimate ratios.
+            2. **BRAND RECOGNITION**: Scan for logos/wrappers (e.g. "McDonalds"). If found, use official data.
+            3. **STATE & TEXTURE**:
+               - **Density**: Is it dense (fudge) or airy (cake)? Adjust caloric density.
+               - **Cooking State**: Identify if COOKED or RAW. Use appropriate caloric density (e.g. 100g Cooked Rice ~130cal vs Raw ~360cal).
+            4. **VOLUME & DEPTH**:
+               - **Single Items**: If "1 chip" or "2 cookies", calculate for that specific count/weight (e.g. 1 chip = 2g), NOT a standard serving.
+               - **Shadows**: Use peak shadows to determine if a pile is a mound or flat layer.
+               - **Bone/Shells**: Subtract 30-40% volume for bone-in meat (wings/ribs) before calculating calories.
+            5. **HIDDEN DETECTIVE**: check for sheen/gloss. Add 1-2tsp oil/butter if shiny.
+            6. **CONTEXT**: Restaurant container = higher oil/sodium.
+
             RULES:
-            1. **VISUAL PRECISION**: Don't guess generic values; derive them from the visual volume.
-            2. **SINGLE ITEM CHECK**: If the image contains a single unit (e.g., 1 chip, 1 cracker), calculate calories for THAT SPECIFIC UNIT only (e.g. 10-15 cal), NOT a standard serving (120 cal).
-            3. **VISUAL SCALE**: Be conservative. If an item looks small (e.g., a single potato chip), estimate typical weight (e.g., 2-3g) and calculate based on that.
-            4. **HIDDEN DETECTIVE**: Check for glossiness, sheen, or sauce residues. If present, assume cooking oil/butter was used and ADD a separate 'Oil/Butter' item (est. 1tsp - 1tbsp).
-            5. **COOKING STATE**: Identify if food is COOKED or RAW. Use the caloric density appropriate for the VISUAL STATE (e.g. 100g Cooked Rice = ~130cal, whereas 100g Raw Rice = ~360cal).
-            6. **CONTEXT AWARENESS**: If the setting looks like a restaurant or fast-food container, assume higher oil/sodium content.
-            7. **FORMAT**: Return raw JSON only.
+            1. **VISUAL PRECISION**: Don't guess generic values; derive them from the visual volume & density.
+            2. **SINGLE ITEM CHECK**: STRICTLY enforce the single item count rule.
+            3. **FORMAT**: Return raw JSON only.
             
             Output format:
             {
@@ -72,6 +74,13 @@ export async function analyzeFoodImage(base64Image, mode = 'food', weightHint = 
     let FOOD_PROMPT = FOOD_PROMPT_BASE;
     if (weightHint) {
         FOOD_PROMPT += `\n\n**CRITICAL CONSTRAINT**: The user has weighed this plate. The TOTAL weight of all food items MUST sum approximately to **${weightHint}g**. Distribute this weight intelligently across the identified ingredients based on visual ratios.`;
+    }
+
+    // Biometric Calibration
+    if (userProfile && userProfile.height) {
+        const heightCm = parseFloat(userProfile.height);
+        const estHandWidth = (heightCm * 0.05).toFixed(1);
+        FOOD_PROMPT += `\n\n**BIOMETRIC CALIBRATION**: The user is ${heightCm}cm tall. Estimated hand width is ~${estHandWidth}cm. IF A HAND IS VISIBLE, use this specific measurement as a ruler to determine scale/volume.`;
     }
 
     // Ensure base64 string is properly formatted

@@ -146,8 +146,8 @@ const FoodScanner = ({ onLogMeal, onDeleteLog, onUpdateLog, nutritionLogs = [], 
         setSaved(false);
 
         try {
-            // PASS THE MODE AND WEIGHT HINT
-            const data = await analyzeFood(image, scanMode, weightHint);
+            // PASS THE MODE, WEIGHT HINT, AND USER PROFILE
+            const data = await analyzeFood(image, scanMode, weightHint, profile);
 
             let foodsArray = [];
             if (data.foods && Array.isArray(data.foods)) foodsArray = data.foods;
