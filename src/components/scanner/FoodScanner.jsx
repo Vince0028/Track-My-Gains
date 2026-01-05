@@ -522,6 +522,12 @@ const FoodScanner = ({ onLogMeal, onDeleteLog, onUpdateLog, nutritionLogs = [], 
                             const isOver = dailyTotals.totalCals > targetCalories * 1.1;
                             const isGood = dailyTotals.totalCals >= targetCalories * 0.9 && !isOver;
 
+                            // Determine if date is clickable (Today or Past)
+                            const today = new Date();
+                            const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+                            const isFuture = dateStr > todayStr;
+                            const isClickable = hasLogs || !isFuture;
+
                             // Color Logic
                             let bgClass = "bg-[var(--bg-primary)]";
                             let textClass = "text-[var(--text-secondary)]";
@@ -541,19 +547,41 @@ const FoodScanner = ({ onLogMeal, onDeleteLog, onUpdateLog, nutritionLogs = [], 
                                     textClass = "text-amber-500";
                                     borderClass = "border-amber-500/30";
                                 }
+                            } else if (isClickable) {
+                                // Style for empty clickable days
+                                bgClass = "bg-[var(--bg-secondary)] hover:bg-[var(--bg-primary)]";
+                                textClass = "text-[var(--text-secondary)]";
+                                borderClass = "border-[var(--border)] border-dashed opacity-50";
+                                if (dateStr === todayStr) {
+                                    borderClass = "border-[var(--accent)] border opacity-100";
+                                    textClass = "text-[var(--accent)]";
+                                }
                             }
 
                             return (
                                 <div
                                     key={day}
-                                    onClick={() => hasLogs && setViewModal({ day, logs, totalCals: dailyTotals.totalCals, totalProtein: dailyTotals.totalProtein, totalCarbs: dailyTotals.totalCarbs, totalFats: dailyTotals.totalFats, dateStr })}
-                                    className={`aspect-square rounded-xl border ${borderClass} ${bgClass} p-2 flex flex-col items-center justify-between cursor-pointer hover:brightness-110 transition-all`}
+                                    onClick={() => isClickable && setViewModal({
+                                        day,
+                                        logs,
+                                        totalCals: dailyTotals.totalCals,
+                                        totalProtein: dailyTotals.totalProtein,
+                                        totalCarbs: dailyTotals.totalCarbs,
+                                        totalFats: dailyTotals.totalFats,
+                                        dateStr
+                                    })}
+                                    className={`aspect-square rounded-xl border ${borderClass} ${bgClass} p-2 flex flex-col items-center justify-between transition-all ${isClickable ? 'cursor-pointer hover:brightness-110' : 'cursor-default opacity-30'}`}
                                 >
-                                    <span className={`text-sm font-bold ${hasLogs ? textClass : 'opacity-50'}`}>{day}</span>
+                                    <span className={`text-sm font-bold ${textClass}`}>{day}</span>
                                     {hasLogs && (
                                         <div className="flex flex-col items-center">
                                             <Flame size={12} className={`fill-current mb-0.5 ${textClass}`} />
                                             <span className={`text-[10px] font-black ${textClass}`}>{dailyTotals.totalCals}</span>
+                                        </div>
+                                    )}
+                                    {!hasLogs && isClickable && dateStr === todayStr && (
+                                        <div className="flex flex-col items-center opacity-50">
+                                            <Plus size={12} className="text-[var(--accent)]" />
                                         </div>
                                     )}
                                 </div>
