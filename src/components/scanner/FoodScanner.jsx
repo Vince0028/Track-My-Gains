@@ -435,22 +435,14 @@ const FoodScanner = ({ onLogMeal, onDeleteLog, onUpdateLog, nutritionLogs = [], 
         };
 
         // 1. Call Parent Log Function (Updates DB + App State)
-        await onLogMeal(payload);
+        const newLog = await onLogMeal(payload);
+
+        if (!newLog) return; // Stop if logging failed
 
         // 2. Optimistically update the VIEW MODAL list so user sees it instantly
-        // We need a temp ID for key purposes until refresh, ideally.
-        const tempLog = {
-            ...payload,
-            id: `temp-${Date.now()}`, // Temporary ID
-            // Flatten macros for display
-            calories: payload.totals.calories,
-            protein: payload.totals.protein,
-            carbs: payload.totals.carbs,
-            fats: payload.totals.fats
-        };
-
+        // Use the returned newLog which has the Real UUID, allowing immediate updates/edits
         setViewModal(prev => {
-            const newLogs = [...prev.logs, tempLog];
+            const newLogs = [...prev.logs, newLog];
             const dailyTotals = calculateDailyTotals(newLogs);
             return {
                 ...prev,

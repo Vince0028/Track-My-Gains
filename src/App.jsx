@@ -365,6 +365,7 @@ const App = () => {
         const { error } = await supabase
             .from('daily_nutrition')
             .insert({
+                id: newLog.id, // Explicitly use the generated UUID
                 user_id: session.user.id,
                 date: newLog.date,
                 meal_name: newLog.meal_name,
@@ -380,7 +381,10 @@ const App = () => {
             alert(`Failed to save meal: ${error.message}`);
             // Revert optimistic update on failure
             setNutritionLogs(prev => prev.filter(l => l.id !== newLog.id));
+            return null;
         }
+
+        return newLog;
     };
 
     const handleUpdateLog = async (logId, updatedData) => {
