@@ -514,7 +514,7 @@ const App = () => {
                     units={units}
                 />;
             case AppScreen.AICoach:
-                return <AICoach sessions={sessions} />;
+                return <AICoach sessions={sessions} weeklyPlan={weeklyPlan} nutritionLogs={nutritionLogs} />;
             case AppScreen.History:
                 return <HistoryPage sessions={sessions} weeklyPlan={weeklyPlan} />;
             case AppScreen.Scanner:

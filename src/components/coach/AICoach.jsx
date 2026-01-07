@@ -4,7 +4,7 @@ import { Send, User, Bot, Sparkles, Loader2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { chatWithGroq } from '../../services/groqService';
 
-const AICoach = ({ sessions = [] }) => {
+const AICoach = ({ sessions = [], weeklyPlan = null, nutritionLogs = [] }) => {
     const [messages, setMessages] = useState([
         { id: '1', role: 'coach', text: "Yo! I'm your Gym Bro. Let's get massive. Ask me about your split, form, or macros. What are we crushing today?" }
     ]);
@@ -72,7 +72,7 @@ const AICoach = ({ sessions = [] }) => {
         setLoading(true);
 
         const historySummary = calculateHistorySummary();
-        const response = await chatWithGroq(input, profile, historySummary);
+        const response = await chatWithGroq(input, profile, historySummary, weeklyPlan, nutritionLogs);
         const coachMsg = { id: (Date.now() + 1).toString(), role: 'coach', text: response || '' };
         setMessages(prev => [...prev, coachMsg]);
         setLoading(false);

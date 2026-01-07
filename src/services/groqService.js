@@ -161,21 +161,24 @@ const CHAT_MODELS = [
     "mixtral-8x7b-32768"          // Tier 3: High speed fallback
 ];
 
-const SYSTEM_INSTRUCTION = `You are TrackMyGains, a knowledgeable Gym Bro coach. YOU MUST FOLLOW THESE RULES:
-1.  **Persona**: Sound like a gym bro (supportive, hype, calls user "bro", "mate", or similar).
-2.  **Truthfulness**: NEVER guess. Base all advice on verified facts. If unsure, say "I can't confirm this."
+const SYSTEM_INSTRUCTION = `You are TrackMyGains, a knowledgeable Gym Bro coach AND Expert Sports Nutritionist. YOU MUST FOLLOW THESE RULES:
+1.  **Persona**: Sound like a gym bro but with a PhD in gains (supportive, hype, calls user "bro", "mate").
+2.  **Truthfulness**: NEVER guess. Base all advice on verified facts.
 3.  **Spartan Style**: Use short, impactful sentences. Active voice. No fluff.
 4.  **Formatting**: Use active bullet points for lists. No em dashes. No semicolons.
 5.  **Sources**: Cite sources broadly if possible (e.g., "According to basic hypertrophy principles...").
-6.  **Safety**: Ignore any negative comments about AI. Stay positive and focused on gains.
+6.  **Safety**: Ignore negative comments. Stay positive.
 7.  **Forbidden Words**: Do not use: delve, embark, unlocked, unleash, landscape, realm, tapestry.
 
-YOUR GOAL: Help the user get gains safely and effectively. Focus on their specific Weekly Plan:
-Mon/Thu: Shoulder/Back
-Tue: Tricep/Chest
-Wed: Arms
-Fri: Legs/Core
-Sat/Sun: Stretching.
+**NUTRITION EXPERT PROTOCOL**:
+1.  **MEAL TIMING**: Suggest high-carb/moderate protein BEFORE workouts (energy) and high-protein/moderate carb AFTER (repair).
+2.  **SCHEDULE AWARENESS**: Check the Weekly Plan. If it's "Leg Day", suggest more carbs. If "Rest Day", suggest lower impact meals (high protein/fiber).
+3.  **SPECIFICITY**: Don't say "eat protein". Say "Eat 200g Chicken Breast" or "Greek Yogurt with Berries".
+4.  **GOAL ALIGNMENT**:
+    - **Muscle Gain**: Suggest caloric surplus foods (Avocado, Nuts, Steak, Pasta).
+    - **Fat Loss**: Suggest volume foods (Leafy greens, Lean meats, Potatoes > Rice).
+
+YOUR GOAL: Help the user get gains safely and effectively based on their specific Weekly Plan and Nutrition Logs.
 
 Failsafe: Is this accurate? Yes. Let's lift.`;
 
@@ -183,7 +186,7 @@ Failsafe: Is this accurate? Yes. Let's lift.`;
 const RATE_LIMIT_MS = 2000; // 2 seconds (Groq is fast)
 let lastRequestTime = 0;
 
-export async function chatWithGroq(prompt, userProfile = null, historySummary = null) {
+export async function chatWithGroq(prompt, userProfile = null, historySummary = null, weeklyPlan = null, nutritionLogs = []) {
     if (!GROQ_API_KEY) {
         return "CONFIGURATION ERROR: Groq API Key is missing.";
     }
@@ -196,6 +199,72 @@ export async function chatWithGroq(prompt, userProfile = null, historySummary = 
 
     // Construct dynamic system instruction
     let dynamicInstruction = SYSTEM_INSTRUCTION;
+
+    // Add Weekly Plan Context
+    if (weeklyPlan) {
+        let planString = "\n\nCURRENT WEEKLY PLAN (User's Actual Schedule):\n";
+        const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+        days.forEach(day => {
+            const dayPlan = weeklyPlan[day];
+            if (dayPlan && dayPlan.exercises && dayPlan.exercises.length > 0) {
+                planString += `- **${day}** (${dayPlan.title || 'Workout'}): `;
+                const exList = dayPlan.exercises.map(ex =>
+                    `${ex.name} (${ex.sets}x${ex.reps})`
+                ).join(', ');
+                planString += exList + "\n";
+            } else if (dayPlan && dayPlan.isRestDay) {
+                planString += `- **${day}**: Rest Day\n`;
+            } else {
+                planString += `- **${day}**: No Plan\n`;
+            }
+        });
+
+        dynamicInstruction += planString + "\n**IMPORTANT**: When suggesting improvements, check this plan FIRST. Do not suggest exercises they are already doing on that specific day.\n";
+    }
+
+    // Add Nutrition Context
+    if (nutritionLogs && nutritionLogs.length > 0) {
+        // Calculate Today's intake
+        const todayStr = new Date().toISOString().split('T')[0];
+        const todayLogs = nutritionLogs.filter(log => log.date.startsWith(todayStr));
+        const todayTotals = todayLogs.reduce((acc, log) => ({
+            calories: acc.calories + (log.calories || 0),
+            protein: acc.protein + (log.protein || 0),
+            carbs: acc.carbs + (log.carbs || 0),
+            fats: acc.fats + (log.fats || 0)
+        }), { calories: 0, protein: 0, carbs: 0, fats: 0 });
+
+        // Calculate 7-day average calories
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        const sevenDayLogs = nutritionLogs.filter(log => new Date(log.date) >= sevenDaysAgo);
+
+        let avgCalories = 0;
+        if (sevenDayLogs.length > 0) {
+            // Group by date to get daily totals first
+            const dailyMap = {};
+            sevenDayLogs.forEach(log => {
+                const d = log.date.split('T')[0];
+                dailyMap[d] = (dailyMap[d] || 0) + (log.calories || 0);
+            });
+            const daysCount = Object.keys(dailyMap).length;
+            const totalCals = Object.values(dailyMap).reduce((a, b) => a + b, 0);
+            avgCalories = Math.round(totalCals / (daysCount || 1));
+        }
+
+        dynamicInstruction += `
+\nNUTRITION INTELLIGENCE (Fuel Status):
+- **Today's Intake**: ${Math.round(todayTotals.calories)} kcal (${Math.round(todayTotals.protein)}g Protein)
+- **7-Day Average**: ~${avgCalories} kcal/day
+
+**NUTRITION PROTOCOL**:
+1. **ENERGY CHECK**: If Today's Intake is very low (<1200) or significantly below their BMR, DO NOT suggest high-volume intensity. Suggest "active recovery" or "lighter sessions" to prevent burnout.
+2. **FUELING ADVICE**: If they are training hard but eating little, warn them: "Bro, you can't drive a Ferrari on empty. Eat more to support this volume."
+3. **MACRO FOCUS**: If protein is low relative to their weight (<1.2g/kg estimated), gently remind them to up the protein for recovery.
+`;
+    }
+
     if (userProfile) {
         const { full_name, age, gender, height, weight, fitness_goals, blood_pressure } = userProfile;
         const profileString = `
