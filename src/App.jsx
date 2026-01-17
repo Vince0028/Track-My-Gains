@@ -471,6 +471,7 @@ const App = () => {
                     onUpdateSession={updateSession}
                     units={units}
                     onNavigateToHistory={() => setCurrentScreen(AppScreen.History)}
+                    weeklyPlan={weeklyPlan}
                 />;
             case AppScreen.Calendar:
                 return (
