@@ -40,14 +40,61 @@ const AICoach = ({ sessions = [], weeklyPlan = null, nutritionLogs = [] }) => {
     }, []);
 
     const calculateHistorySummary = () => {
-        if (!sessions || sessions.length === 0) return null;
+        if (!sessions) return null;
+
+        // --- ROBUST HISTORY CALCULATION START ---
+        const now = new Date();
+        now.setHours(0, 0, 0, 0);
+        let startDate = new Date();
+        if (sessions.length > 0) {
+            const earliest = new Date(Math.min(...sessions.map(s => new Date(s.date).getTime())));
+            startDate = earliest;
+        } else {
+            startDate.setDate(now.getDate() - 28);
+        }
+        startDate.setHours(0, 0, 0, 0);
+
+        const missedSessions = [];
+        const tempDate = new Date(startDate);
+        const getLocalDateStr = (date) => {
+            const d = new Date(date);
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        };
+
+        while (tempDate < now) { // < now (strictly before today, today is pending not missed)
+            const dateStr = getLocalDateStr(tempDate);
+            const foundSession = sessions.find(s => getLocalDateStr(s.date) === dateStr);
+
+            // If no session found for this past date...
+            if (!foundSession || !foundSession.exercises || foundSession.exercises.length === 0) {
+                // ...check if one was planned
+                if (weeklyPlan) {
+                    const dayName = tempDate.toLocaleDateString('en-US', { weekday: 'long' });
+                    const plan = weeklyPlan[dayName];
+                    if (plan && !plan.isRestDay && plan.exercises && plan.exercises.length > 0) {
+                        missedSessions.push({
+                            date: dateStr,
+                            day: dayName,
+                            title: plan.title
+                        });
+                    }
+                }
+            }
+            tempDate.setDate(tempDate.getDate() + 1);
+        }
+        // --- ROBUST HISTORY CALCULATION END ---
 
         const totalWorkouts = sessions.length;
-        const lastWorkout = sessions.sort((a, b) => new Date(b.date) - new Date(a.date))[0];
-        const lastDate = new Date(lastWorkout.date).toLocaleDateString();
+        const lastWorkout = sessions.length > 0
+            ? sessions.sort((a, b) => new Date(b.date) - new Date(a.date))[0]
+            : null;
+
+        const lastDate = lastWorkout ? new Date(lastWorkout.date).toLocaleDateString() : "Never";
 
         // Calculate simplified consistency (sessions in last 30 days)
-        const now = new Date();
         const thirtyDaysAgo = new Date();
         thirtyDaysAgo.setDate(now.getDate() - 30);
 
@@ -59,7 +106,9 @@ const AICoach = ({ sessions = [], weeklyPlan = null, nutritionLogs = [] }) => {
             lastWorkoutDate: lastDate,
             recentSessionCount: recentSessions.length,
             consistencyRating,
-            lastWorkoutName: lastWorkout.title || "Unknown Workout"
+            lastWorkoutName: lastWorkout?.title || "None",
+            missedSessionsCount: missedSessions.length,
+            missedSessionsDetails: missedSessions.slice(-3) // Send last 3 missed for context
         };
     };
 

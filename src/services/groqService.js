@@ -291,18 +291,37 @@ USER PROFILE:
 
     // Add Workout History Context
     if (historySummary) {
-        const { totalWorkouts, lastWorkoutDate, recentSessionCount, consistencyRating, lastWorkoutName } = historySummary;
-        const historyString = `
+        const { totalWorkouts, lastWorkoutDate, recentSessionCount, consistencyRating, lastWorkoutName, missedSessionsCount, missedSessionsDetails } = historySummary;
+        let historyString = `
 WORKOUT HISTORY CONTEXT:
 - Total Workouts: ${totalWorkouts}
 - Last Workout: ${lastWorkoutName} on ${lastWorkoutDate}
 - Recent Consistency (30d): ${recentSessionCount} sessions (${consistencyRating})
+`;
 
+        if (missedSessionsCount && missedSessionsCount > 0) {
+            historyString += `- **MISSED WORKOUTS**: The user missed ${missedSessionsCount} workout(s) recently.\n`;
+            if (missedSessionsDetails && missedSessionsDetails.length > 0) {
+                historyString += `  - Details: ${missedSessionsDetails.map(m => `${m.title} on ${m.date} (${m.day})`).join(', ')}\n`;
+            }
+        }
+
+        historyString += `
 **HISTORY PROTOCOL**:
 1. **ACKNOWLEDGE EFFORT**: If consistency is "High", hype them up! If "Low", gently motivate them to get back in the gym.
 2. **REFERENCE LAST SESSION**: Mention their last workout ("${lastWorkoutName}") when relevant (e.g., "Since you just crushed ${lastWorkoutName}...").
 3. **PROGRESS**: Remind them they've done ${totalWorkouts} sessions total. Consistency is key!
 `;
+
+        if (missedSessionsCount > 0) {
+            historyString += `4. **MISSED SESSION COACHING**: 
+   - You MUST acknowledge that they missed a workout recently (specifically mention the title/day if listed).
+   - Don't be mean, but hold them accountable. Ask "What happened with ${missedSessionsDetails?.[0]?.title || 'training'} on ${missedSessionsDetails?.[0]?.day || 'that day'}?"
+   - Offer to help them reschedule or adjust the volume if they are busy.
+   - Example: "I noticed you skipped Leg Day on Friday. Everything good, bro? Don't let one slip turn into a slide."
+`;
+        }
+
         dynamicInstruction += historyString;
     }
 
