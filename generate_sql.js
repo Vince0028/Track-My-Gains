@@ -9,7 +9,7 @@ const __dirname = path.dirname(__filename);
 const inputDir = path.join(__dirname, 'fitness data');
 const outputFile = path.join(__dirname, 'populate_data.sql');
 const targetUserId = '0a17aa0e-65a0-41ad-a0af-b7ce6ba83fc4'; // Old User ID to look for
-const placeholderId = 'REPLACE_WITH_NEW_USER_UUID';
+const placeholderId = '0245dad7-f027-4bc6-a2a2-590e951d520d';
 
 // Helper to escape SQL strings
 const escapeSqlString = (value) => {
@@ -86,7 +86,13 @@ const processFile = (filename, tableName, columnMapping) => {
                 return escapeSqlString(val);
             });
 
-            sql += `INSERT INTO public.${tableName} (${columnMapping.join(', ')}) VALUES (${values.join(', ')});\n`;
+            sql += `INSERT INTO public.${tableName} (${columnMapping.join(', ')}) VALUES (${values.join(', ')})`;
+
+            if (tableName === 'weekly_plan') {
+                sql += ` ON CONFLICT (user_id) DO UPDATE SET plan = EXCLUDED.plan, updated_at = EXCLUDED.updated_at;\n`;
+            } else {
+                sql += ` ON CONFLICT (id) DO NOTHING;\n`;
+            }
         }
     }
     return sql;
