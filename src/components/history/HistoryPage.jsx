@@ -273,7 +273,7 @@ const HistoryPage = ({ sessions, weeklyPlan }) => {
             </div>
 
             {/* Mobile Filter Section */}
-            <div className="md:hidden space-y-3 relative z-50">
+            <div className="md:hidden space-y-3 relative z-30">
                 <button
                     onClick={() => setShowFilterMenu(!showFilterMenu)}
                     className="flex items-center justify-between w-full text-left bg-[var(--bg-secondary)] p-3 rounded-lg organic-border"
