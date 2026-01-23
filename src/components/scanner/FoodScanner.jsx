@@ -8,8 +8,17 @@ const FoodScanner = ({ onLogMeal, onDeleteLog, onUpdateLog, nutritionLogs = [], 
     const [scanDate, setScanDate] = useState(new Date().toISOString().split('T')[0]); // Default to today
     const [showTips, setShowTips] = useState(false);
     const [weightHint, setWeightHint] = useState(''); // New State for Weight Input
+    const [portionSize, setPortionSize] = useState('medium'); // 'small' | 'medium' | 'large' | 'xl'
     const [showHistoryModal, setShowHistoryModal] = useState(false);
     const [historySearchQuery, setHistorySearchQuery] = useState('');
+
+    // Portion size multipliers for quick adjustments
+    const PORTION_MULTIPLIERS = {
+        small: { label: 'Small', multiplier: 0.7, desc: '~70% portion' },
+        medium: { label: 'Medium', multiplier: 1.0, desc: 'Standard serving' },
+        large: { label: 'Large', multiplier: 1.4, desc: '~140% portion' },
+        xl: { label: 'XL', multiplier: 1.8, desc: '~180% portion' }
+    };
 
     // Scanner State
     const [image, setImage] = useState(null);
@@ -154,8 +163,9 @@ const FoodScanner = ({ onLogMeal, onDeleteLog, onUpdateLog, nutritionLogs = [], 
             else if (data.food_name) foodsArray = [data];
             else throw new Error("Invalid response format from AI.");
 
-            // Initialize with quantity: 1
-            foodsArray = foodsArray.map(f => ({ ...f, quantity: 1 }));
+            // Initialize with quantity based on portion size selection
+            const portionMultiplier = PORTION_MULTIPLIERS[portionSize]?.multiplier || 1;
+            foodsArray = foodsArray.map(f => ({ ...f, quantity: portionMultiplier }));
 
             // Calculate totals considering quantity
             const calculateTotals = (items) => {
@@ -826,10 +836,12 @@ const FoodScanner = ({ onLogMeal, onDeleteLog, onUpdateLog, nutritionLogs = [], 
                                 <ul className="space-y-1 text-[var(--text-secondary)] list-disc pl-4 marker:text-[var(--accent)]">
                                     {scanMode === 'food' ? (
                                         <>
-                                            <li>Ensure good lighting without harsh shadows.</li>
-                                            <li>Capture the entire plate or meal clearly.</li>
-                                            <li>Separate distinct food items if they are piled up.</li>
-                                            <li>Avoid blurry photos for better accuracy.</li>
+                                            <li><strong>Lighting:</strong> Natural light works best. Avoid harsh shadows.</li>
+                                            <li><strong>Angle:</strong> Shoot from 45° above to show depth and portions.</li>
+                                            <li><strong>Full plate:</strong> Include the entire plate edges for size reference.</li>
+                                            <li><strong>Separate items:</strong> Spread out food if piled up for better detection.</li>
+                                            <li><strong>Include sauces:</strong> Show dressings and sauces for accurate calories.</li>
+                                            <li><strong>Brand visible:</strong> If packaged food, show the brand label.</li>
                                         </>
                                     ) : (
                                         <>
@@ -893,6 +905,26 @@ const FoodScanner = ({ onLogMeal, onDeleteLog, onUpdateLog, nutritionLogs = [], 
 
                             {result && (
                                 <div className="p-8 animate-in slide-in-from-bottom-4 duration-500">
+                                    {/* Confidence & Context Badge */}
+                                    {(result.confidence || result.meal_context) && (
+                                        <div className="flex items-center gap-2 mb-4">
+                                            {result.confidence && (
+                                                <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                                                    result.confidence === 'high' ? 'bg-emerald-500/20 text-emerald-500 border border-emerald-500/30' :
+                                                    result.confidence === 'medium' ? 'bg-amber-500/20 text-amber-500 border border-amber-500/30' :
+                                                    'bg-rose-500/20 text-rose-500 border border-rose-500/30'
+                                                }`}>
+                                                    {result.confidence} confidence
+                                                </span>
+                                            )}
+                                            {result.meal_context && (
+                                                <span className="px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-[var(--bg-primary)] text-[var(--text-secondary)] border border-[var(--border)]">
+                                                    {result.meal_context.replace('_', ' ')}
+                                                </span>
+                                            )}
+                                        </div>
+                                    )}
+                                    
                                     <div className="flex items-center justify-between gap-4 mb-8">
                                         <div className="flex flex-col items-start">
                                             <span className="text-[var(--text-secondary)] text-xs font-bold uppercase tracking-widest mb-1 flex items-center gap-1"><Flame size={12} className="text-orange-500" /> Calories</span>
@@ -918,20 +950,45 @@ const FoodScanner = ({ onLogMeal, onDeleteLog, onUpdateLog, nutritionLogs = [], 
                             {image && !result && !loading && !isCameraOpen && (
                                 <div className="p-6 border-t border-[var(--border)] bg-[var(--bg-primary)]/30 space-y-4">
                                     {scanMode === 'food' && (
-                                        <div className="flex items-center gap-3 bg-[var(--bg-secondary)] px-4 py-3 rounded-xl border border-[var(--border)]">
-                                            <Scale size={20} className="text-[var(--text-secondary)]" />
-                                            <div className="flex-1">
-                                                <label className="text-[10px] font-bold text-[var(--accent)] uppercase tracking-widest block mb-1">Optional Weight (g)</label>
-                                                <input
-                                                    type="number"
-                                                    placeholder="e.g. 500"
-                                                    value={weightHint}
-                                                    onChange={(e) => setWeightHint(e.target.value)}
-                                                    className="w-full bg-transparent font-bold text-[var(--text-primary)] placeholder:font-normal focus:outline-none"
-                                                />
+                                        <>
+                                            {/* Portion Size Quick Select */}
+                                            <div className="space-y-2">
+                                                <label className="text-[10px] font-bold text-[var(--accent)] uppercase tracking-widest flex items-center gap-2">
+                                                    <Utensils size={12} /> Portion Size
+                                                </label>
+                                                <div className="grid grid-cols-4 gap-2">
+                                                    {Object.entries(PORTION_MULTIPLIERS).map(([key, { label, desc }]) => (
+                                                        <button
+                                                            key={key}
+                                                            onClick={() => setPortionSize(key)}
+                                                            className={`py-3 px-2 rounded-xl text-center transition-all border ${
+                                                                portionSize === key
+                                                                    ? 'bg-[var(--accent)] text-[var(--bg-primary)] border-[var(--accent)] shadow-lg'
+                                                                    : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)] border-[var(--border)] hover:border-[var(--accent)]/50'
+                                                            }`}
+                                                        >
+                                                            <span className="font-bold text-sm block">{label}</span>
+                                                            <span className="text-[9px] opacity-70">{desc}</span>
+                                                        </button>
+                                                    ))}
+                                                </div>
                                             </div>
-                                            <span className="text-xs font-bold text-[var(--text-secondary)]">Total</span>
-                                        </div>
+
+                                            {/* Optional Weight Input */}
+                                            <div className="flex items-center gap-3 bg-[var(--bg-secondary)] px-4 py-3 rounded-xl border border-[var(--border)]">
+                                                <Scale size={20} className="text-[var(--text-secondary)]" />
+                                                <div className="flex-1">
+                                                    <label className="text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-widest block mb-1">Weighed? Enter total grams (optional)</label>
+                                                    <input
+                                                        type="number"
+                                                        placeholder="e.g. 450g - for precise tracking"
+                                                        value={weightHint}
+                                                        onChange={(e) => setWeightHint(e.target.value)}
+                                                        className="w-full bg-transparent font-bold text-[var(--text-primary)] placeholder:font-normal placeholder:text-sm focus:outline-none"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </>
                                     )}
 
                                     <button onClick={handleAnalyze} className="w-full py-4 bg-[var(--accent)] hover:bg-[var(--accent)]/90 text-[var(--bg-primary)] font-black text-lg rounded-2xl shadow-lg shadow-[var(--accent)]/20 hover:shadow-[var(--accent)]/40 active:scale-[0.98] transition-all flex items-center justify-center gap-2 group">
@@ -972,7 +1029,12 @@ const FoodScanner = ({ onLogMeal, onDeleteLog, onUpdateLog, nutritionLogs = [], 
                                                         ) : (
                                                             <p className="font-bold text-[var(--text-primary)] text-lg leading-tight">{item.name}</p>
                                                         )}
-                                                        <p className="text-xs text-[var(--text-secondary)] font-medium mt-0.5">{item.serving_size}</p>
+                                                        <div className="flex items-center gap-2 mt-0.5">
+                                                            <p className="text-xs text-[var(--text-secondary)] font-medium">{item.serving_size}</p>
+                                                            {item.cooking_method && item.cooking_method !== 'added' && (
+                                                                <span className="text-[9px] px-1.5 py-0.5 rounded bg-[var(--bg-primary)] text-[var(--text-secondary)] border border-[var(--border)] capitalize">{item.cooking_method}</span>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 </div>
                                                 <div className="flex flex-col items-end gap-1">
