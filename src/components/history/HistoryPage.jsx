@@ -115,29 +115,43 @@ const HistoryPage = ({ sessions, weeklyPlan }) => {
                 session.exercises.forEach(exercise => {
                     const normalizedName = exercise.name.trim();
 
-                    week.totalExercises += 1;
-                    if (exercise.completed && !session.isMissed) {
-                        week.completedExercises += 1;
+                    // Only count towards consistency if not a pending session (today's incomplete workout)
+                    if (!session.isPending) {
+                        week.totalExercises += 1;
+                        
+                        // For recorded sessions (not missed), count as completed
+                        // For missed sessions, only count if explicitly marked completed (which won't happen)
+                        if (!session.isMissed) {
+                            // User logged this workout, so count exercises as completed
+                            // Either they have completed:true OR it's a recorded session
+                            week.completedExercises += (exercise.completed !== false) ? 1 : 0;
+                        }
                     }
 
                     const existingExercise = week.exercises.find(ex => ex.name === normalizedName);
+                    
+                    // Determine if this exercise counts as completed
+                    const isCompleted = !session.isMissed && !session.isPending && (exercise.completed !== false);
+                    
                     if (existingExercise) {
-                        if (!session.isMissed) {
+                        if (!session.isMissed && !session.isPending) {
                             existingExercise.completedReps += exercise.reps || 0;
                             existingExercise.completedSets += exercise.sets || 0;
-                            existingExercise.timesCompleted += (exercise.completed ? 1 : 0);
+                            existingExercise.timesCompleted += isCompleted ? 1 : 0;
                         }
-                        existingExercise.count += 1;
-                        existingExercise.missedCount += (session.isMissed ? 1 : 0);
+                        if (!session.isPending) {
+                            existingExercise.count += 1;
+                            existingExercise.missedCount += (session.isMissed ? 1 : 0);
+                        }
                     } else {
                         week.exercises.push({
                             name: normalizedName,
                             plannedSets: exercise.sets || 0,
                             plannedReps: exercise.reps || 0,
-                            completedSets: !session.isMissed ? (exercise.sets || 0) : 0,
-                            completedReps: !session.isMissed ? (exercise.reps || 0) : 0,
-                            timesCompleted: (!session.isMissed && exercise.completed) ? 1 : 0,
-                            count: 1,
+                            completedSets: (!session.isMissed && !session.isPending) ? (exercise.sets || 0) : 0,
+                            completedReps: (!session.isMissed && !session.isPending) ? (exercise.reps || 0) : 0,
+                            timesCompleted: isCompleted ? 1 : 0,
+                            count: session.isPending ? 0 : 1,
                             missedCount: session.isMissed ? 1 : 0
                         });
                     }
