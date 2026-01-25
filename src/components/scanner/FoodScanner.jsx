@@ -8,16 +8,16 @@ const FoodScanner = ({ onLogMeal, onDeleteLog, onUpdateLog, nutritionLogs = [], 
     const [scanDate, setScanDate] = useState(new Date().toISOString().split('T')[0]); // Default to today
     const [showTips, setShowTips] = useState(false);
     const [weightHint, setWeightHint] = useState(''); // New State for Weight Input
-    const [portionSize, setPortionSize] = useState('medium'); // 'small' | 'medium' | 'large' | 'xl'
+    const [plateEaten, setPlateEaten] = useState('all'); // 'half' | 'most' | 'all' | 'extra'
     const [showHistoryModal, setShowHistoryModal] = useState(false);
     const [historySearchQuery, setHistorySearchQuery] = useState('');
 
-    // Portion size multipliers for quick adjustments
-    const PORTION_MULTIPLIERS = {
-        small: { label: 'Small', multiplier: 0.7, desc: '~70% portion' },
-        medium: { label: 'Medium', multiplier: 1.0, desc: 'Standard serving' },
-        large: { label: 'Large', multiplier: 1.4, desc: '~140% portion' },
-        xl: { label: 'XL', multiplier: 1.8, desc: '~180% portion' }
+    // Plate eaten multipliers - how much of the plate did you actually eat?
+    const PLATE_EATEN_OPTIONS = {
+        half: { label: 'Half', multiplier: 0.5, desc: 'Ate ~50%', emoji: '🍽️½' },
+        most: { label: 'Most', multiplier: 0.75, desc: 'Ate ~75%', emoji: '🍽️¾' },
+        all: { label: 'All', multiplier: 1.0, desc: 'Finished plate', emoji: '🍽️✓' },
+        extra: { label: 'Extra', multiplier: 1.5, desc: 'Had seconds', emoji: '🍽️+' }
     };
 
     // Scanner State
@@ -163,9 +163,8 @@ const FoodScanner = ({ onLogMeal, onDeleteLog, onUpdateLog, nutritionLogs = [], 
             else if (data.food_name) foodsArray = [data];
             else throw new Error("Invalid response format from AI.");
 
-            // Initialize with quantity based on portion size selection
-            const portionMultiplier = PORTION_MULTIPLIERS[portionSize]?.multiplier || 1;
-            foodsArray = foodsArray.map(f => ({ ...f, quantity: portionMultiplier }));
+            // Initialize with quantity = 1 (user can adjust after)
+            foodsArray = foodsArray.map(f => ({ ...f, quantity: 1 }));
 
             // Calculate totals considering quantity
             const calculateTotals = (items) => {
@@ -180,10 +179,58 @@ const FoodScanner = ({ onLogMeal, onDeleteLog, onUpdateLog, nutritionLogs = [], 
                 }, { calories: 0, protein: 0, carbs: 0, fats: 0 });
             };
 
-            setResult({ foods: foodsArray, totals: calculateTotals(foodsArray) });
+            setResult({ foods: foodsArray, totals: calculateTotals(foodsArray), confidence: data.confidence, meal_context: data.meal_context });
         } catch (err) {
             console.error("Analysis failed:", err);
             setError(err.message || "Failed to analyze image. Please try again.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Re-analyze with user corrections
+    const handleReanalyze = async () => {
+        if (!result || !result.foods) return;
+        setLoading(true);
+        setError('');
+
+        try {
+            // Build a correction hint from user's edits
+            const corrections = result.foods.map(f => `${f.quantity || 1}x ${f.name}`).join(', ');
+            
+            // Call AI with the image again but with correction hints
+            const data = await analyzeFood(image, scanMode, weightHint, profile, corrections);
+
+            let foodsArray = [];
+            if (data.foods && Array.isArray(data.foods)) foodsArray = data.foods;
+            else if (data.food_name) foodsArray = [data];
+            else throw new Error("Invalid response format from AI.");
+
+            // Preserve user's quantity adjustments where food names match
+            foodsArray = foodsArray.map(f => {
+                const existingFood = result.foods.find(ef => 
+                    ef.name.toLowerCase().includes(f.name.toLowerCase()) || 
+                    f.name.toLowerCase().includes(ef.name.toLowerCase())
+                );
+                return { ...f, quantity: existingFood?.quantity || 1 };
+            });
+
+            const calculateTotals = (items) => {
+                return items.reduce((acc, item) => {
+                    const qty = item.quantity || 1;
+                    return {
+                        calories: acc.calories + (parseInt(item.calories) || 0) * qty,
+                        protein: acc.protein + (parseFloat(item.protein) || 0) * qty,
+                        carbs: acc.carbs + (parseFloat(item.carbs) || 0) * qty,
+                        fats: acc.fats + (parseFloat(item.fats) || 0) * qty,
+                    };
+                }, { calories: 0, protein: 0, carbs: 0, fats: 0 });
+            };
+
+            setResult({ foods: foodsArray, totals: calculateTotals(foodsArray), confidence: data.confidence, meal_context: data.meal_context });
+        } catch (err) {
+            console.error("Re-analysis failed:", err);
+            setError(err.message || "Failed to re-analyze. Please try again.");
         } finally {
             setLoading(false);
         }
@@ -200,7 +247,28 @@ const FoodScanner = ({ onLogMeal, onDeleteLog, onUpdateLog, nutritionLogs = [], 
                 fats: acc.fats + (parseFloat(item.fats) || 0) * qty,
             };
         }, { calories: 0, protein: 0, carbs: 0, fats: 0 });
-        setResult({ foods: items, totals: newTotals });
+        setResult(prev => ({ ...prev, foods: items, totals: newTotals }));
+    };
+
+    // Add a new food item manually
+    const handleAddFoodItem = () => {
+        const newFood = {
+            name: 'New Food Item',
+            calories: 0,
+            protein: '0',
+            carbs: '0',
+            fats: '0',
+            serving_size: '1 serving',
+            quantity: 1
+        };
+        const updatedFoods = [...result.foods, newFood];
+        recalculateResultTotals(updatedFoods);
+    };
+
+    // Remove a food item
+    const handleRemoveFoodItem = (index) => {
+        const updatedFoods = result.foods.filter((_, i) => i !== index);
+        recalculateResultTotals(updatedFoods);
     };
 
     const handleSave = () => {
@@ -951,43 +1019,26 @@ const FoodScanner = ({ onLogMeal, onDeleteLog, onUpdateLog, nutritionLogs = [], 
                                 <div className="p-6 border-t border-[var(--border)] bg-[var(--bg-primary)]/30 space-y-4">
                                     {scanMode === 'food' && (
                                         <>
-                                            {/* Portion Size Quick Select */}
-                                            <div className="space-y-2">
-                                                <label className="text-[10px] font-bold text-[var(--accent)] uppercase tracking-widest flex items-center gap-2">
-                                                    <Utensils size={12} /> Portion Size
-                                                </label>
-                                                <div className="grid grid-cols-4 gap-2">
-                                                    {Object.entries(PORTION_MULTIPLIERS).map(([key, { label, desc }]) => (
-                                                        <button
-                                                            key={key}
-                                                            onClick={() => setPortionSize(key)}
-                                                            className={`py-3 px-2 rounded-xl text-center transition-all border ${
-                                                                portionSize === key
-                                                                    ? 'bg-[var(--accent)] text-[var(--bg-primary)] border-[var(--accent)] shadow-lg'
-                                                                    : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)] border-[var(--border)] hover:border-[var(--accent)]/50'
-                                                            }`}
-                                                        >
-                                                            <span className="font-bold text-sm block">{label}</span>
-                                                            <span className="text-[9px] opacity-70">{desc}</span>
-                                                        </button>
-                                                    ))}
+                                            {/* Optional Weight Input - collapsed by default */}
+                                            <details className="group">
+                                                <summary className="flex items-center gap-2 cursor-pointer text-[var(--text-secondary)] hover:text-[var(--accent)] transition-colors">
+                                                    <Scale size={16} />
+                                                    <span className="text-xs font-bold uppercase tracking-wider">Advanced: Enter weight (optional)</span>
+                                                    <ChevronRight size={14} className="group-open:rotate-90 transition-transform" />
+                                                </summary>
+                                                <div className="mt-3 flex items-center gap-3 bg-[var(--bg-secondary)] px-4 py-3 rounded-xl border border-[var(--border)]">
+                                                    <div className="flex-1">
+                                                        <input
+                                                            type="number"
+                                                            placeholder="Total plate weight in grams (e.g. 450)"
+                                                            value={weightHint}
+                                                            onChange={(e) => setWeightHint(e.target.value)}
+                                                            className="w-full bg-transparent font-bold text-[var(--text-primary)] placeholder:font-normal placeholder:text-sm focus:outline-none"
+                                                        />
+                                                    </div>
+                                                    <span className="text-sm font-bold text-[var(--text-secondary)]">g</span>
                                                 </div>
-                                            </div>
-
-                                            {/* Optional Weight Input */}
-                                            <div className="flex items-center gap-3 bg-[var(--bg-secondary)] px-4 py-3 rounded-xl border border-[var(--border)]">
-                                                <Scale size={20} className="text-[var(--text-secondary)]" />
-                                                <div className="flex-1">
-                                                    <label className="text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-widest block mb-1">Weighed? Enter total grams (optional)</label>
-                                                    <input
-                                                        type="number"
-                                                        placeholder="e.g. 450g - for precise tracking"
-                                                        value={weightHint}
-                                                        onChange={(e) => setWeightHint(e.target.value)}
-                                                        className="w-full bg-transparent font-bold text-[var(--text-primary)] placeholder:font-normal placeholder:text-sm focus:outline-none"
-                                                    />
-                                                </div>
-                                            </div>
+                                            </details>
                                         </>
                                     )}
 
@@ -1002,33 +1053,53 @@ const FoodScanner = ({ onLogMeal, onDeleteLog, onUpdateLog, nutritionLogs = [], 
 
                         {result && (
                             <div className="space-y-4">
-                                {/* Detected Items */}
-                                <div className="flex items-center gap-2 px-2">
-                                    <span className="w-2 h-2 rounded-full bg-[var(--accent)]"></span>
-                                    <h3 className="text-lg font-bold text-[var(--text-primary)]">Detected Items</h3>
-                                    <span className="px-2 py-0.5 rounded-full bg-[var(--bg-secondary)] border border-[var(--border)] text-xs text-[var(--text-secondary)] font-mono">{result.foods.length}</span>
+                                {/* Detected Items Header */}
+                                <div className="flex items-center justify-between px-2">
+                                    <div className="flex items-center gap-2">
+                                        <span className="w-2 h-2 rounded-full bg-[var(--accent)]"></span>
+                                        <h3 className="text-lg font-bold text-[var(--text-primary)]">Detected Items</h3>
+                                        <span className="px-2 py-0.5 rounded-full bg-[var(--bg-secondary)] border border-[var(--border)] text-xs text-[var(--text-secondary)] font-mono">{result.foods.length}</span>
+                                    </div>
+                                    <p className="text-[10px] text-[var(--text-secondary)]">Tap name to edit</p>
                                 </div>
+
+                                {/* Edit hint */}
+                                <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3 flex items-start gap-2">
+                                    <Info size={16} className="text-blue-400 mt-0.5 flex-shrink-0" />
+                                    <p className="text-xs text-blue-300/80">
+                                        <strong>Wrong food detected?</strong> Edit the name below, adjust the quantity, then tap "Re-analyze" for accurate nutrition data.
+                                    </p>
+                                </div>
+
                                 <div className="grid gap-3">
                                     {result.foods.map((item, index) => (
-                                        <div key={index} className="flex flex-col p-4 bg-[var(--bg-secondary)]/30 backdrop-blur-md rounded-2xl border border-[var(--border)]" style={{ animationDelay: `${index * 100} ms` }}>
+                                        <div key={index} className="flex flex-col p-4 bg-[var(--bg-secondary)]/30 backdrop-blur-md rounded-2xl border border-[var(--border)] relative group" style={{ animationDelay: `${index * 100} ms` }}>
+                                            {/* Delete button */}
+                                            {!saved && result.foods.length > 1 && (
+                                                <button
+                                                    onClick={() => handleRemoveFoodItem(index)}
+                                                    className="absolute top-2 right-2 p-1.5 bg-rose-500/10 text-rose-500 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-rose-500 hover:text-white"
+                                                    title="Remove item"
+                                                >
+                                                    <Trash2 size={14} />
+                                                </button>
+                                            )}
+                                            
                                             <div className="flex items-center justify-between mb-2">
                                                 <div className="flex items-center gap-4 flex-1">
                                                     <div className="w-10 h-10 rounded-xl bg-[var(--bg-primary)] border border-[var(--border)] flex items-center justify-center text-[var(--text-secondary)] font-bold shadow-sm">{index + 1}</div>
                                                     <div className="flex-1">
-                                                        {scanMode === 'label' ? (
-                                                            <div className="flex items-center gap-2 group/edit">
-                                                                <input
-                                                                    type="text"
-                                                                    value={item.name}
-                                                                    onChange={(e) => handleNameChange(index, e.target.value)}
-                                                                    className="bg-transparent font-bold text-[var(--text-primary)] text-lg leading-tight w-full focus:outline-none focus:border-b border-[var(--accent)] transition-all placeholder:opacity-50"
-                                                                    placeholder="Click to name item..."
-                                                                />
-                                                                <Pencil size={12} className="opacity-0 group-hover/edit:opacity-50 text-[var(--text-secondary)]" />
-                                                            </div>
-                                                        ) : (
-                                                            <p className="font-bold text-[var(--text-primary)] text-lg leading-tight">{item.name}</p>
-                                                        )}
+                                                        {/* Always editable food name */}
+                                                        <div className="flex items-center gap-2 group/edit">
+                                                            <input
+                                                                type="text"
+                                                                value={item.name}
+                                                                onChange={(e) => handleNameChange(index, e.target.value)}
+                                                                className="bg-transparent font-bold text-[var(--text-primary)] text-lg leading-tight w-full focus:outline-none focus:border-b-2 border-[var(--accent)] transition-all placeholder:opacity-50"
+                                                                placeholder="Enter food name..."
+                                                            />
+                                                            <Pencil size={12} className="opacity-30 group-hover/edit:opacity-70 text-[var(--accent)] flex-shrink-0" />
+                                                        </div>
                                                         <div className="flex items-center gap-2 mt-0.5">
                                                             <p className="text-xs text-[var(--text-secondary)] font-medium">{item.serving_size}</p>
                                                             {item.cooking_method && item.cooking_method !== 'added' && (
@@ -1037,7 +1108,7 @@ const FoodScanner = ({ onLogMeal, onDeleteLog, onUpdateLog, nutritionLogs = [], 
                                                         </div>
                                                     </div>
                                                 </div>
-                                                <div className="flex flex-col items-end gap-1">
+                                                <div className="flex flex-col items-end gap-1 pr-6">
                                                     <span className="font-black text-[var(--text-primary)]">{Math.round((parseInt(item.calories) || 0) * (item.quantity || 1))} <span className="text-[10px] text-[var(--text-secondary)] font-medium uppercase">cal</span></span>
                                                 </div>
                                             </div>
@@ -1055,7 +1126,36 @@ const FoodScanner = ({ onLogMeal, onDeleteLog, onUpdateLog, nutritionLogs = [], 
                                             </div>
                                         </div>
                                     ))}
+
+                                    {/* Add food item button */}
+                                    {!saved && (
+                                        <button
+                                            onClick={handleAddFoodItem}
+                                            className="w-full py-3 border-2 border-dashed border-[var(--border)] rounded-2xl text-[var(--text-secondary)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-all flex items-center justify-center gap-2"
+                                        >
+                                            <Plus size={18} /> Add missing food item
+                                        </button>
+                                    )}
                                 </div>
+
+                                {/* Re-analyze Button */}
+                                {!saved && (
+                                    <button 
+                                        onClick={handleReanalyze} 
+                                        disabled={loading}
+                                        className="w-full py-3 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 border border-blue-500/30 font-bold rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                                    >
+                                        {loading ? (
+                                            <>
+                                                <Loader2 size={18} className="animate-spin" /> Re-analyzing...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <ScanLine size={18} /> Re-analyze with my corrections
+                                            </>
+                                        )}
+                                    </button>
+                                )}
 
                                 {/* Action Buttons */}
                                 <div className="flex flex-col gap-3 mt-4">

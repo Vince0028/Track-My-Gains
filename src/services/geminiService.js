@@ -188,7 +188,7 @@ Output format:
     "notes": "Brief analysis notes if needed"
 }`;
 
-export async function analyzeImageWithGemini(base64Image, mode = 'food', weightHint = null, userProfile = null) {
+export async function analyzeImageWithGemini(base64Image, mode = 'food', weightHint = null, userProfile = null, corrections = null) {
     if (!apiKey) {
         throw new Error("GEMINI API Key missing.");
     }
@@ -201,6 +201,13 @@ export async function analyzeImageWithGemini(base64Image, mode = 'food', weightH
     // Add Weight Hint Constraint
     if (mode === 'food' && weightHint) {
         prompt += `\n\n**CRITICAL CONSTRAINT**: The user has weighed this plate. The TOTAL weight of all food items MUST sum approximately to **${weightHint}g**. Distribute this weight intelligently across the identified ingredients based on visual ratios.`;
+    }
+
+    // Add User Corrections for re-analysis
+    if (mode === 'food' && corrections) {
+        prompt += `\n\n**USER CORRECTIONS - IMPORTANT**: The user has corrected the food identification. They say the plate contains: "${corrections}". 
+USE THESE CORRECTIONS as the authoritative food names. Look up accurate nutritional data for these specific foods. 
+The user knows what they're eating better than visual analysis - trust their corrections for food names but still estimate portions from the image.`;
     }
 
     // Biometric Calibration (Hand Size from Height)
