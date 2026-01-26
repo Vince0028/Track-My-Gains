@@ -1,13 +1,113 @@
 
-import React, { useState } from 'react';
-import { TrendingUp, Flame, Target, CalendarDays, CheckCircle2, Circle, Edit3, Trash2, X } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { TrendingUp, Flame, Target, CalendarDays, CheckCircle2, Circle, Edit3, Trash2, X, ChevronDown, PieChart as PieChartIcon } from 'lucide-react';
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { MUSCLE_ICONS } from '../../constants';
 import { convertWeight, toKg } from '../common/UnitConverter';
+
+// Pie chart colors - premium color palette
+const PIE_COLORS = [
+    '#A8C686', // Accent green
+    '#7CB4B0', // Teal
+    '#E5B877', // Gold
+    '#C9A0DC', // Lavender
+    '#F0A68E', // Coral
+    '#8AACA8', // Muted teal
+    '#D4A574', // Sand
+    '#9DB5B2', // Sage
+];
 
 const Dashboard = ({ sessions, todayWorkout, onUpdateSession, onDeleteExercise, units, onNavigateToHistory, weeklyPlan }) => {
     const [editingExercise, setEditingExercise] = useState(null);
     const [deleteModal, setDeleteModal] = useState({ show: false, exercise: null });
+    const [selectedWeek, setSelectedWeek] = useState('all');
+    const [weekDropdownOpen, setWeekDropdownOpen] = useState(false);
+    const weekDropdownRef = useRef(null);
+
+    // Close dropdown when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (weekDropdownRef.current && !weekDropdownRef.current.contains(event.target)) {
+                setWeekDropdownOpen(false);
+            }
+        };
+
+        if (weekDropdownOpen) {
+            document.addEventListener('mousedown', handleClickOutside);
+        }
+
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [weekDropdownOpen]);
+
+    // Generate list of weeks from sessions data
+    const availableWeeks = useMemo(() => {
+        const weekMap = new Map();
+
+        sessions.forEach(session => {
+            if (!session.exercises) return;
+            const sessionDate = new Date(session.date);
+            const weekStart = new Date(sessionDate);
+            const day = weekStart.getDay();
+            const diff = weekStart.getDate() - day + (day === 0 ? -6 : 1);
+            weekStart.setDate(diff);
+            weekStart.setHours(0, 0, 0, 0);
+
+            const weekKey = weekStart.toISOString().split('T')[0];
+            if (!weekMap.has(weekKey)) {
+                const weekLabel = weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                weekMap.set(weekKey, { key: weekKey, label: `Week of ${weekLabel}`, startDate: weekStart });
+            }
+        });
+
+        return Array.from(weekMap.values()).sort((a, b) => b.startDate - a.startDate);
+    }, [sessions]);
+
+    // Calculate exercise completion counts for pie chart
+    const exerciseCompletionData = useMemo(() => {
+        const exerciseCount = {};
+
+        sessions.forEach(session => {
+            if (!session.exercises) return;
+
+            // Filter by week if a specific week is selected
+            if (selectedWeek !== 'all') {
+                const sessionDate = new Date(session.date);
+                const weekStart = new Date(sessionDate);
+                const day = weekStart.getDay();
+                const diff = weekStart.getDate() - day + (day === 0 ? -6 : 1);
+                weekStart.setDate(diff);
+                weekStart.setHours(0, 0, 0, 0);
+                const weekKey = weekStart.toISOString().split('T')[0];
+
+                if (weekKey !== selectedWeek) return;
+            }
+
+            session.exercises.forEach(exercise => {
+                if (exercise.completed) {
+                    const name = exercise.name;
+                    exerciseCount[name] = (exerciseCount[name] || 0) + 1;
+                }
+            });
+        });
+
+        // Convert to array and sort by count descending
+        const sortedData = Object.entries(exerciseCount)
+            .map(([name, value]) => ({ name, value }))
+            .sort((a, b) => b.value - a.value);
+
+        // Take top 8 exercises, group rest as "Others"
+        if (sortedData.length > 8) {
+            const top7 = sortedData.slice(0, 7);
+            const othersValue = sortedData.slice(7).reduce((sum, item) => sum + item.value, 0);
+            return [...top7, { name: 'Others', value: othersValue }];
+        }
+
+        return sortedData;
+    }, [sessions, selectedWeek]);
+
+    const totalCompletions = exerciseCompletionData.reduce((sum, item) => sum + item.value, 0);
 
 
     const getWeeklyProgress = () => {
@@ -354,6 +454,153 @@ const Dashboard = ({ sessions, todayWorkout, onUpdateSession, onDeleteExercise, 
                                     </LineChart>
                                 </ResponsiveContainer>
                             </div>
+                        </div>
+                    </div>
+
+                    {/* Exercise Completion Pie Chart */}
+                    <div className="space-y-4">
+                        <div className="flex items-center justify-between px-1">
+                            <h2 className="text-xl font-bold flex items-center gap-2">
+                                <PieChartIcon size={20} className="text-[var(--accent)]" />
+                                Top Exercises
+                            </h2>
+
+                            {/* Week Filter Dropdown */}
+                            <div className="relative" ref={weekDropdownRef}>
+                                <button
+                                    onClick={() => setWeekDropdownOpen(!weekDropdownOpen)}
+                                    className="flex items-center gap-2 px-3 py-1.5 bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg text-sm font-medium hover:bg-[var(--bg-primary)] transition-organic"
+                                >
+                                    <span className="text-[var(--text-secondary)]">
+                                        {selectedWeek === 'all'
+                                            ? 'All Weeks'
+                                            : availableWeeks.find(w => w.key === selectedWeek)?.label || 'All Weeks'}
+                                    </span>
+                                    <ChevronDown size={16} className={`text-[var(--text-secondary)] transition-transform ${weekDropdownOpen ? 'rotate-180' : ''}`} />
+                                </button>
+
+                                {weekDropdownOpen && (
+                                    <div className="absolute right-0 top-full mt-2 w-56 bg-[var(--bg-secondary)] border border-[var(--border)] rounded-xl shadow-2xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                                        <div className="max-h-64 overflow-y-auto custom-scrollbar">
+                                            <button
+                                                onClick={() => {
+                                                    setSelectedWeek('all');
+                                                    setWeekDropdownOpen(false);
+                                                }}
+                                                className={`w-full px-4 py-3 text-left text-sm font-medium hover:bg-[var(--bg-primary)] transition-colors ${selectedWeek === 'all' ? 'text-[var(--accent)] bg-[var(--accent)]/10' : 'text-[var(--text-primary)]'}`}
+                                            >
+                                                All Weeks
+                                            </button>
+                                            {availableWeeks.map(week => (
+                                                <button
+                                                    key={week.key}
+                                                    onClick={() => {
+                                                        setSelectedWeek(week.key);
+                                                        setWeekDropdownOpen(false);
+                                                    }}
+                                                    className={`w-full px-4 py-3 text-left text-sm font-medium hover:bg-[var(--bg-primary)] transition-colors ${selectedWeek === week.key ? 'text-[var(--accent)] bg-[var(--accent)]/10' : 'text-[var(--text-primary)]'}`}
+                                                >
+                                                    {week.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="bg-[var(--bg-secondary)] organic-shape organic-border p-6 subtle-depth">
+                            {exerciseCompletionData.length > 0 ? (
+                                <div className="flex flex-col lg:flex-row items-center gap-6">
+                                    {/* Pie Chart */}
+                                    <div className="w-full lg:w-1/2 h-[250px]">
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <PieChart>
+                                                <Pie
+                                                    data={exerciseCompletionData}
+                                                    cx="50%"
+                                                    cy="50%"
+                                                    innerRadius={50}
+                                                    outerRadius={90}
+                                                    paddingAngle={3}
+                                                    dataKey="value"
+                                                    stroke="var(--bg-primary)"
+                                                    strokeWidth={2}
+                                                >
+                                                    {exerciseCompletionData.map((entry, index) => (
+                                                        <Cell
+                                                            key={`cell-${index}`}
+                                                            fill={PIE_COLORS[index % PIE_COLORS.length]}
+                                                            className="transition-all duration-300 hover:opacity-80"
+                                                        />
+                                                    ))}
+                                                </Pie>
+                                                <Tooltip
+                                                    content={({ active, payload }) => {
+                                                        if (active && payload && payload.length) {
+                                                            const data = payload[0].payload;
+                                                            const percentage = totalCompletions > 0
+                                                                ? Math.round((data.value / totalCompletions) * 100)
+                                                                : 0;
+                                                            return (
+                                                                <div className="bg-[var(--bg-secondary)] border border-[var(--border)] p-3 rounded-xl shadow-2xl">
+                                                                    <p className="text-sm font-bold text-[var(--text-primary)] mb-1">{data.name}</p>
+                                                                    <div className="flex items-center gap-2">
+                                                                        <div
+                                                                            className="w-3 h-3 rounded-full"
+                                                                            style={{ backgroundColor: PIE_COLORS[exerciseCompletionData.indexOf(data) % PIE_COLORS.length] }}
+                                                                        />
+                                                                        <p className="text-xs text-[var(--text-secondary)]">
+                                                                            <span className="text-[var(--accent)] font-bold">{data.value}</span> completions ({percentage}%)
+                                                                        </p>
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        }
+                                                        return null;
+                                                    }}
+                                                />
+                                            </PieChart>
+                                        </ResponsiveContainer>
+                                    </div>
+
+                                    {/* Legend */}
+                                    <div className="w-full lg:w-1/2 space-y-2">
+                                        <div className="text-center lg:text-left mb-4">
+                                            <p className="text-2xl font-bold text-[var(--accent)]">{totalCompletions}</p>
+                                            <p className="text-xs text-[var(--text-secondary)] uppercase tracking-wider">Total Completions</p>
+                                        </div>
+                                        <div className="grid grid-cols-1 gap-2 max-h-[180px] overflow-y-auto custom-scrollbar pr-2">
+                                            {exerciseCompletionData.map((entry, index) => (
+                                                <div
+                                                    key={entry.name}
+                                                    className="flex items-center justify-between p-2 bg-[var(--bg-primary)]/50 rounded-lg hover:bg-[var(--bg-primary)] transition-colors"
+                                                >
+                                                    <div className="flex items-center gap-2">
+                                                        <div
+                                                            className="w-3 h-3 rounded-full flex-shrink-0"
+                                                            style={{ backgroundColor: PIE_COLORS[index % PIE_COLORS.length] }}
+                                                        />
+                                                        <span className="text-sm font-medium truncate max-w-[120px]">{entry.name}</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-sm font-bold text-[var(--accent)]">{entry.value}</span>
+                                                        <span className="text-xs text-[var(--text-secondary)]">
+                                                            ({totalCompletions > 0 ? Math.round((entry.value / totalCompletions) * 100) : 0}%)
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="text-center py-12 text-[var(--text-secondary)]">
+                                    <PieChartIcon size={48} className="mx-auto mb-3 opacity-30" />
+                                    <p className="font-medium">No completed exercises yet</p>
+                                    <p className="text-sm opacity-70">Complete some exercises to see your progress!</p>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>

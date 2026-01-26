@@ -64,6 +64,50 @@ button {
     backdrop-filter: blur(4px);
 }
 
+/* Custom Scrollbar - Dark Mode (matches theme) */
+.custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+    background: var(--bg-primary);
+    border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background: var(--border-hover);
+    border-radius: 10px;
+    transition: background 0.2s ease;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: var(--accent);
+}
+
+/* Firefox scrollbar support */
+.custom-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-hover) var(--bg-primary);
+}
+
+/* Light mode scrollbar - keeps default browser styling */
+body.light .custom-scrollbar::-webkit-scrollbar-track {
+    background: #f0f0f0;
+}
+
+body.light .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #c0c0c0;
+}
+
+body.light .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: var(--accent);
+}
+
+body.light .custom-scrollbar {
+    scrollbar-color: #c0c0c0 #f0f0f0;
+}
+
 /* Markdown Styles */
 .markdown-content ul {
     list-style-type: disc;
