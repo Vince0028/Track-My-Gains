@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
-import { Pencil, Trash2, Plus, X, AlertTriangle, CheckCircle2, Info, Check } from 'lucide-react';
-import { MUSCLE_ICONS, getMuscleGroup, COMMON_EXERCISES } from '../../constants';
+import { Pencil, Trash2, Plus, X, AlertTriangle, CheckCircle2, Info, Check, ChevronDown } from 'lucide-react';
+import { MUSCLE_ICONS, getMuscleGroup, COMMON_EXERCISES, normalizeExerciseMetrics, getExerciseMetricMeta, normalizeExerciseSearchText } from '../../constants';
 import { convertWeight, toKg } from '../common/UnitConverter';
 
 const WeeklySchedule = ({ weeklyPlan, setWeeklyPlan, confirmAction, units }) => {
@@ -9,6 +9,9 @@ const WeeklySchedule = ({ weeklyPlan, setWeeklyPlan, confirmAction, units }) => 
     const [editingDay, setEditingDay] = useState(null);
     const [editBuffer, setEditBuffer] = useState(null); // Local buffer for edits
     const [activeMuscleDropdown, setActiveMuscleDropdown] = useState({ day: null, index: null });
+    const [activeExerciseDropdown, setActiveExerciseDropdown] = useState({ day: null, index: null });
+    const [exerciseDropdownQuery, setExerciseDropdownQuery] = useState('');
+    const [exerciseDropdownFilter, setExerciseDropdownFilter] = useState('all');
     const [deleteModal, setDeleteModal] = useState({ show: false, day: null, exIndex: null, exerciseName: '', otherDays: [] });
     const [deleteConfirmation, setDeleteConfirmation] = useState({ show: false, exerciseName: '', scope: '' });
     // Modal for delete during editing
@@ -29,7 +32,10 @@ const WeeklySchedule = ({ weeklyPlan, setWeeklyPlan, confirmAction, units }) => 
         if (editingDay && editBuffer) {
             setWeeklyPlan(prev => ({
                 ...prev,
-                [editingDay]: editBuffer
+                [editingDay]: {
+                    ...editBuffer,
+                    exercises: editBuffer.exercises.map(ex => normalizeExerciseMetrics(ex))
+                }
             }));
         }
         setEditingDay(null);
@@ -40,6 +46,43 @@ const WeeklySchedule = ({ weeklyPlan, setWeeklyPlan, confirmAction, units }) => 
     const cancelEditing = () => {
         setEditingDay(null);
         setEditBuffer(null);
+        setActiveMuscleDropdown({ day: null, index: null });
+        setActiveExerciseDropdown({ day: null, index: null });
+        setExerciseDropdownQuery('');
+        setExerciseDropdownFilter('all');
+    };
+
+    const getExerciseSuggestions = (query = '', muscleFilter = 'all') => {
+        const normalized = normalizeExerciseSearchText(query);
+
+        const filteredByMuscle = muscleFilter === 'all'
+            ? COMMON_EXERCISES
+            : COMMON_EXERCISES.filter(exercise => getMuscleGroup(exercise) === muscleFilter);
+
+        if (!normalized) {
+            return filteredByMuscle;
+        }
+
+        const terms = normalized.split(/\s+/).filter(Boolean);
+        const rankedMatches = filteredByMuscle
+            .map((exercise) => {
+                const lower = normalizeExerciseSearchText(exercise);
+                const containsWholeQuery = lower.includes(normalized);
+                const startsWithQuery = lower.startsWith(normalized);
+                const termHits = terms.reduce((count, term) => count + (lower.includes(term) ? 1 : 0), 0);
+
+                const score =
+                    (containsWholeQuery ? 100 : 0) +
+                    (startsWithQuery ? 20 : 0) +
+                    (termHits * 10);
+
+                return { exercise, score };
+            })
+            .filter(item => item.score > 0)
+            .sort((a, b) => b.score - a.score || a.exercise.localeCompare(b.exercise))
+            .map(item => item.exercise);
+
+        return rankedMatches.length > 0 ? rankedMatches : filteredByMuscle;
     };
 
     // Get the end of current week (Sunday)
@@ -107,7 +150,7 @@ const WeeklySchedule = ({ weeklyPlan, setWeeklyPlan, confirmAction, units }) => 
     // Add exercise to the local buffer (not saved until Save is clicked)
     const addExerciseToBuffer = () => {
         if (!editBuffer) return;
-        const newEx = { name: 'New Exercise', sets: 3, reps: 10, weight: 0, muscleGroup: 'Core' };
+        const newEx = normalizeExerciseMetrics({ name: 'New Exercise', sets: 3, reps: 10, weight: 0, muscleGroup: 'Core' });
         setEditBuffer(prev => ({
             ...prev,
             exercises: [...prev.exercises, newEx]
@@ -122,12 +165,12 @@ const WeeklySchedule = ({ weeklyPlan, setWeeklyPlan, confirmAction, units }) => 
             const newExs = [...prev.exercises];
 
             if (field === 'name') {
-                newExs[index] = {
+                newExs[index] = normalizeExerciseMetrics({
                     ...newExs[index],
                     name: value,
                     muscleGroup: getMuscleGroup(value)
-                };
-            } else if (['weight', 'sets', 'reps'].includes(field)) {
+                });
+            } else if (['weight', 'sets', 'reps', 'durationMinutes'].includes(field)) {
                 let valueToStore = Number(value);
 
                 if (field === 'weight') {
@@ -211,7 +254,7 @@ const WeeklySchedule = ({ weeklyPlan, setWeeklyPlan, confirmAction, units }) => 
 
     // The old functions that directly update the plan (used for delete operations outside of edit mode)
     const addExercise = (day) => {
-        const newEx = { name: 'New Exercise', sets: 3, reps: 10, weight: 0, muscleGroup: 'Core' };
+        const newEx = normalizeExerciseMetrics({ name: 'New Exercise', sets: 3, reps: 10, weight: 0, muscleGroup: 'Core' });
         setWeeklyPlan(prev => ({
             ...prev,
             [day]: {
@@ -227,6 +270,15 @@ const WeeklySchedule = ({ weeklyPlan, setWeeklyPlan, confirmAction, units }) => 
             [day]: { ...prev[day], title: newTitle }
         }));
     };
+
+    useEffect(() => {
+        if (!editingDay) {
+            setActiveMuscleDropdown({ day: null, index: null });
+            setActiveExerciseDropdown({ day: null, index: null });
+            setExerciseDropdownQuery('');
+            setExerciseDropdownFilter('all');
+        }
+    }, [editingDay]);
 
     return (
         <div className="p-4 md:p-8 space-y-8 animate-in fade-in duration-500">
@@ -340,8 +392,11 @@ const WeeklySchedule = ({ weeklyPlan, setWeeklyPlan, confirmAction, units }) => 
                             ) : (
                                 <div className="mt-6 space-y-3">
                                     {displayPlan.exercises.map((ex, i) => (
+                                        (() => {
+                                            const metric = getExerciseMetricMeta(ex);
+                                            return (
                                         <div key={i} className="flex flex-col sm:flex-row sm:items-center gap-4 p-4 bg-[var(--bg-primary)]/50 border border-[var(--border)] organic-shape">
-                                            <div className="flex items-center gap-3 flex-1">
+                                            <div className="flex items-center gap-3 flex-1 min-w-0">
                                                 <div
                                                     className={`relative p-2 bg-[var(--bg-secondary)] organic-shape border border-[var(--border)] transition-colors ${isEditing ? 'cursor-pointer hover:border-[var(--accent)]' : ''}`}
                                                     onClick={(e) => {
@@ -361,6 +416,10 @@ const WeeklySchedule = ({ weeklyPlan, setWeeklyPlan, confirmAction, units }) => 
                                                                         key={m}
                                                                         onClick={() => {
                                                                             updateExerciseInBuffer(i, 'muscleGroup', m);
+                                                                            if (activeExerciseDropdown.day === day && activeExerciseDropdown.index === i) {
+                                                                                setExerciseDropdownFilter(m);
+                                                                                setExerciseDropdownQuery('');
+                                                                            }
                                                                             setActiveMuscleDropdown({ day: null, index: null });
                                                                         }}
                                                                         className={`w-full text-left px-3 py-2 text-sm rounded-lg transition-colors flex items-center gap-2 ${ex.muscleGroup === m ? 'bg-[var(--accent)] text-[var(--bg-primary)]' : 'hover:bg-[var(--bg-primary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
@@ -377,19 +436,108 @@ const WeeklySchedule = ({ weeklyPlan, setWeeklyPlan, confirmAction, units }) => 
                                                     <div className="fixed inset-0 z-[99]" onClick={(e) => { e.stopPropagation(); setActiveMuscleDropdown({ day: null, index: null }); }} />
                                                 )}
                                                 {isEditing ? (
-                                                    <input
-                                                        className="bg-transparent border-b border-[var(--accent)] font-medium w-full"
-                                                        value={ex.name}
-                                                        onChange={(e) => updateExerciseInBuffer(i, 'name', e.target.value)}
-                                                        list="exercise-list"
-                                                        placeholder="Exercise Name"
-                                                    />
+                                                    <div className="relative flex-1 min-w-0">
+                                                            <input
+                                                                className="bg-transparent border-b border-[var(--accent)] font-medium w-full pr-1"
+                                                                value={ex.name}
+                                                                onFocus={() => {
+                                                                    setActiveExerciseDropdown({ day, index: i });
+                                                                    setExerciseDropdownFilter(ex.muscleGroup || 'all');
+                                                                    setExerciseDropdownQuery(ex.name === 'New Exercise' ? '' : ex.name || '');
+                                                                }}
+                                                                onChange={(e) => {
+                                                                    updateExerciseInBuffer(i, 'name', e.target.value);
+                                                                    setActiveExerciseDropdown({ day, index: i });
+                                                                    setExerciseDropdownQuery(e.target.value);
+                                                                }}
+                                                                placeholder="Search exercise or type custom"
+                                                            />
+
+                                                            {activeExerciseDropdown.day === day && activeExerciseDropdown.index === i && (
+                                                                <div className="absolute top-[calc(100%+8px)] left-0 right-0 z-[110] bg-[var(--bg-secondary)] border border-[var(--border)] rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                                                                    <div className="p-3 border-b border-[var(--border)] space-y-2">
+                                                                        <input
+                                                                            type="text"
+                                                                            value={exerciseDropdownQuery}
+                                                                            onChange={(e) => setExerciseDropdownQuery(e.target.value)}
+                                                                            className="w-full bg-[var(--bg-primary)] border border-[var(--border)] rounded-md px-2 py-1.5 text-sm"
+                                                                            placeholder="Search in exercise list"
+                                                                        />
+                                                                        <div className="flex items-center gap-2">
+                                                                            <select
+                                                                                value={exerciseDropdownFilter}
+                                                                                onChange={(e) => setExerciseDropdownFilter(e.target.value)}
+                                                                                className="bg-[var(--bg-primary)] border border-[var(--border)] rounded-md px-2 py-1.5 text-xs"
+                                                                            >
+                                                                                <option value="all">All Muscles</option>
+                                                                                {Object.keys(MUSCLE_ICONS).map(muscle => (
+                                                                                    <option key={muscle} value={muscle}>{muscle}</option>
+                                                                                ))}
+                                                                            </select>
+                                                                            <span className="text-[10px] text-[var(--text-secondary)]">
+                                                                                {getExerciseSuggestions(exerciseDropdownQuery, exerciseDropdownFilter).length} exercises
+                                                                            </span>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="max-h-64 overflow-y-auto p-1 custom-scrollbar">
+                                                                        {getExerciseSuggestions(exerciseDropdownQuery, exerciseDropdownFilter).map((exerciseName) => (
+                                                                            <button
+                                                                                key={exerciseName}
+                                                                                type="button"
+                                                                                onClick={() => {
+                                                                                    updateExerciseInBuffer(i, 'name', exerciseName);
+                                                                                    setActiveExerciseDropdown({ day: null, index: null });
+                                                                                    setExerciseDropdownQuery('');
+                                                                                    setExerciseDropdownFilter('all');
+                                                                                }}
+                                                                                className={`w-full text-left px-3 py-2 text-sm rounded-lg transition-colors ${ex.name === exerciseName ? 'bg-[var(--accent)] text-[var(--bg-primary)]' : 'hover:bg-[var(--bg-primary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
+                                                                            >
+                                                                                {exerciseName}
+                                                                            </button>
+                                                                        ))}
+
+                                                                        {getExerciseSuggestions(exerciseDropdownQuery, exerciseDropdownFilter).length === 0 && (
+                                                                            <div className="px-3 py-2 text-xs text-[var(--text-secondary)]">
+                                                                                No matches for this filter. Try another search or muscle group.
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            )}
+                                                    </div>
                                                 ) : (
                                                     <span className="font-medium">{ex.name}</span>
                                                 )}
                                             </div>
 
-                                            <div className="flex items-center gap-4">
+                                            {isEditing && activeExerciseDropdown.day === day && activeExerciseDropdown.index === i && (
+                                                <div className="fixed inset-0 z-[109]" onClick={(e) => { e.stopPropagation(); setActiveExerciseDropdown({ day: null, index: null }); }} />
+                                            )}
+
+                                            <div className="flex items-center gap-3 shrink-0 sm:justify-end self-center">
+                                                {isEditing && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setExerciseDropdownQuery(ex.name === 'New Exercise' ? '' : ex.name || '');
+                                                            setExerciseDropdownFilter(ex.muscleGroup || 'all');
+                                                            setActiveExerciseDropdown(
+                                                                activeExerciseDropdown.day === day && activeExerciseDropdown.index === i
+                                                                    ? { day: null, index: null }
+                                                                    : { day, index: i }
+                                                            );
+                                                        }}
+                                                        className="h-10 w-10 shrink-0 rounded-lg border-2 border-[var(--accent)]/50 bg-[var(--bg-secondary)] text-[var(--text-primary)] hover:border-[var(--accent)] hover:bg-[var(--accent)]/10 transition-colors flex items-center justify-center"
+                                                        title="Open exercise list"
+                                                        aria-label="Open exercise dropdown"
+                                                    >
+                                                        <ChevronDown
+                                                            size={18}
+                                                            className={`transition-transform ${activeExerciseDropdown.day === day && activeExerciseDropdown.index === i ? 'rotate-180' : ''}`}
+                                                        />
+                                                    </button>
+                                                )}
                                                 <div className="flex items-center gap-1 text-xs font-bold text-[var(--text-secondary)] uppercase">
                                                     {isEditing ? (
                                                         <input
@@ -419,12 +567,12 @@ const WeeklySchedule = ({ weeklyPlan, setWeeklyPlan, confirmAction, units }) => 
                                                         <input
                                                             type="number"
                                                             className="w-10 bg-[var(--bg-secondary)] border border-[var(--border)] rounded p-1"
-                                                            value={ex.reps === 0 ? '' : ex.reps}
-                                                            onChange={(e) => updateExerciseInBuffer(i, 'reps', Number(e.target.value))}
+                                                            value={metric.value === 0 ? '' : metric.value}
+                                                            onChange={(e) => updateExerciseInBuffer(i, metric.field, Number(e.target.value))}
                                                             placeholder="0"
                                                         />
-                                                    ) : <span>{ex.reps}</span>}
-                                                    <span>reps</span>
+                                                    ) : <span>{metric.value}</span>}
+                                                    <span>{metric.label}</span>
                                                 </div>
 
                                                 {isEditing && (
@@ -438,6 +586,8 @@ const WeeklySchedule = ({ weeklyPlan, setWeeklyPlan, confirmAction, units }) => 
                                                 )}
                                             </div>
                                         </div>
+                                            );
+                                        })()
                                     ))}
 
                                     {isEditing && (
@@ -454,12 +604,6 @@ const WeeklySchedule = ({ weeklyPlan, setWeeklyPlan, confirmAction, units }) => 
                     );
                 })}
             </div>
-
-            <datalist id="exercise-list">
-                {COMMON_EXERCISES.map((ex, i) => (
-                    <option key={i} value={ex} />
-                ))}
-            </datalist>
 
             {/* Delete Exercise Modal */}
             {deleteModal.show && (

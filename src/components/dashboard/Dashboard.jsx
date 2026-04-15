@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { TrendingUp, Flame, Target, CalendarDays, CheckCircle2, Circle, Edit3, Trash2, X, ChevronDown, PieChart as PieChartIcon } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { MUSCLE_ICONS } from '../../constants';
+import { MUSCLE_ICONS, getExerciseMetricMeta } from '../../constants';
 import { convertWeight, toKg } from '../common/UnitConverter';
 
 // Pie chart colors - premium color palette
@@ -342,6 +342,9 @@ const Dashboard = ({ sessions, todayWorkout, onUpdateSession, onDeleteExercise, 
 
                                     <div className="space-y-3">
                                         {todayWorkout.exercises.map((ex, idx) => (
+                                            (() => {
+                                                const metric = getExerciseMetricMeta(ex);
+                                                return (
                                             <div key={idx} className={`flex items-center justify-between p-4 bg-[var(--bg-primary)]/50 organic-border rounded-[18px_22px_15px_20px] group transition-organic ${ex.completed ? 'opacity-50 border-[var(--accent)]/40' : 'hover:bg-[var(--bg-primary)]'}`}>
                                                 <div className="flex items-center gap-4 flex-1">
                                                     <button
@@ -356,7 +359,7 @@ const Dashboard = ({ sessions, todayWorkout, onUpdateSession, onDeleteExercise, 
                                                     <div className="flex-1">
                                                         <div className="font-semibold">{ex.name}</div>
                                                         <div className="text-xs text-[var(--text-secondary)] flex items-center gap-2">
-                                                            <span>{ex.sets}×{ex.reps}</span>
+                                                            <span>{ex.sets}x{metric.value} {metric.label}</span>
                                                             <span>•</span>
                                                             {editingExercise === ex.id ? (
                                                                 <input
@@ -395,6 +398,8 @@ const Dashboard = ({ sessions, todayWorkout, onUpdateSession, onDeleteExercise, 
                                                     </button>
                                                 </div>
                                             </div>
+                                                );
+                                            })()
                                         ))}
                                     </div>
                                 </>

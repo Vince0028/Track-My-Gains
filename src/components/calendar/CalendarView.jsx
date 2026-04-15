@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ChevronLeft, ChevronRight, Trash2, Check, CircleDashed, X, Loader2 } from 'lucide-react';
-import { MUSCLE_ICONS } from '../../constants';
+import { MUSCLE_ICONS, getExerciseMetricMeta } from '../../constants';
 
 const CalendarView = ({ sessions, onDeleteSession, weeklyPlan, onMarkComplete, units }) => {
     const [currentDate, setCurrentDate] = useState(new Date());
@@ -301,6 +301,9 @@ const CalendarView = ({ sessions, onDeleteSession, weeklyPlan, onMarkComplete, u
                         {viewModal.data && viewModal.data.exercises && (
                             <div className="space-y-3 max-h-[40vh] overflow-y-auto pr-2 custom-scrollbar">
                                 {viewModal.data.exercises.map((ex, i) => (
+                                    (() => {
+                                        const metric = getExerciseMetricMeta(ex);
+                                        return (
                                     <div key={i} className={`flex items-center gap-4 p-3 organic-shape border ${viewModal.isSession && ex.completed ? 'bg-emerald-500/5 border-emerald-500/30' : 'bg-[var(--bg-primary)] border-[var(--border)]'}`}>
                                         <div className={`w-10 h-10 rounded-lg flex items-center justify-center p-1.5 ${viewModal.isSession ? 'bg-emerald-500/10 text-emerald-400' : 'bg-[var(--bg-secondary)] text-[var(--text-primary)]'}`}>
                                             {MUSCLE_ICONS[ex.muscleGroup]}
@@ -315,7 +318,7 @@ const CalendarView = ({ sessions, onDeleteSession, weeklyPlan, onMarkComplete, u
                                                     {ex.sets} SETS
                                                 </span>
                                                 <span className="font-medium bg-[var(--bg-secondary)] px-1.5 py-0.5 rounded text-[10px] border border-[var(--border)]">
-                                                    {ex.reps} REPS
+                                                    {metric.value} {metric.labelCaps}
                                                 </span>
                                                 <span className="font-medium bg-[var(--bg-secondary)] px-1.5 py-0.5 rounded text-[10px] border border-[var(--border)] text-[var(--accent)]">
                                                     {ex.weight} {units}
@@ -323,6 +326,8 @@ const CalendarView = ({ sessions, onDeleteSession, weeklyPlan, onMarkComplete, u
                                             </div>
                                         </div>
                                     </div>
+                                        );
+                                    })()
                                 ))}
                             </div>
                         )}

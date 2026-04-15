@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { ChevronLeft, ChevronRight, TrendingUp } from 'lucide-react';
+import { isDurationExercise } from '../../constants';
 
 const WeeklyHistory = ({ sessions }) => {
     const [currentPage, setCurrentPage] = useState(0);
@@ -188,6 +189,7 @@ const WeeklyHistory = ({ sessions }) => {
                                 const completionRate = Math.round(
                                     (exercise.timesCompleted / exercise.count) * 100
                                 );
+                                const metricLabel = isDurationExercise(exercise.name) ? 'Minutes Done' : 'Reps Done';
                                 return (
                                     <div key={idx} className="bg-[var(--bg-primary)] rounded-lg p-4 border border-[var(--border)]">
                                         <div className="flex items-center justify-between mb-3">
@@ -213,7 +215,7 @@ const WeeklyHistory = ({ sessions }) => {
                                                 </div>
                                             </div>
                                             <div className="bg-[var(--bg-secondary)] rounded p-3 text-center">
-                                                <div className="text-[var(--text-secondary)] text-xs mb-1 uppercase tracking-wide">Reps Done</div>
+                                                <div className="text-[var(--text-secondary)] text-xs mb-1 uppercase tracking-wide">{metricLabel}</div>
                                                 <div className="font-semibold text-white text-lg">
                                                     {Math.round(exercise.completedReps / exercise.count)}
                                                 </div>

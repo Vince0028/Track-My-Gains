@@ -10,7 +10,7 @@ import FoodScanner from './components/scanner/FoodScanner';
 import HistoryPage from './components/history/HistoryPage';
 import Settings from './components/settings/Settings';
 import Auth from './components/auth/Auth';
-import { WEEKLY_DEFAULT_PLAN } from './constants';
+import { WEEKLY_DEFAULT_PLAN, normalizeExerciseMetrics } from './constants';
 import { supabase } from './services/supabaseClient';
 import iconDashboard from './assets/icon_dashboard.png';
 import iconCalendar from './assets/icon_calendar.png';
@@ -48,6 +48,19 @@ const App = () => {
     // New State for Daily Tracker
     const [profile, setProfile] = useState(null);
     const [nutritionLogs, setNutritionLogs] = useState([]);
+
+    const normalizePlanExercises = (plan) => {
+        if (!plan) return WEEKLY_DEFAULT_PLAN;
+
+        return Object.keys(plan).reduce((acc, day) => {
+            const dayPlan = plan[day] || { title: 'Rest Day', exercises: [] };
+            acc[day] = {
+                ...dayPlan,
+                exercises: (dayPlan.exercises || []).map(ex => normalizeExerciseMetrics(ex))
+            };
+            return acc;
+        }, {});
+    };
 
 
     useEffect(() => {
@@ -113,7 +126,7 @@ const App = () => {
                 .single();
 
             if (planData) {
-                setWeeklyPlan(planData.plan);
+                setWeeklyPlan(normalizePlanExercises(planData.plan));
             } else {
 
                 if (planError && planError.code === 'PGRST116') { // No rows found
@@ -272,9 +285,10 @@ const App = () => {
     const handleSetWeeklyPlan = (newValueOrFn, shouldSyncToSession = true) => {
         setWeeklyPlan(currentPlan => {
 
-            const newPlan = typeof newValueOrFn === 'function'
-                ? newValueOrFn(weeklyPlan)
+            const rawPlan = typeof newValueOrFn === 'function'
+                ? newValueOrFn(currentPlan)
                 : newValueOrFn;
+            const newPlan = normalizePlanExercises(rawPlan);
 
             // Side Effects (Supabase) - debounced to prevent excessive writes during typing
             if (session?.user?.id && newPlan) {
@@ -313,15 +327,20 @@ const App = () => {
                         const updatedExercises = todaySession.exercises.map(sessionEx => {
                             const planEx = todayPlan.exercises.find(p => p.name === sessionEx.name);
                             if (planEx) {
+                                const normalizedPlanExercise = normalizeExerciseMetrics(planEx);
                                 // Check for differences in relevant fields
-                                if (sessionEx.weight !== planEx.weight || sessionEx.sets !== planEx.sets || sessionEx.reps !== planEx.reps) {
+                                if (
+                                    sessionEx.weight !== normalizedPlanExercise.weight ||
+                                    sessionEx.sets !== normalizedPlanExercise.sets ||
+                                    sessionEx.reps !== normalizedPlanExercise.reps ||
+                                    sessionEx.metricType !== normalizedPlanExercise.metricType ||
+                                    sessionEx.durationMinutes !== normalizedPlanExercise.durationMinutes
+                                ) {
                                     hasChanges = true;
                                     return {
                                         ...sessionEx,
-                                        weight: planEx.weight,
-                                        sets: planEx.sets,
-                                        reps: planEx.reps,
-                                        muscleGroup: planEx.muscleGroup || sessionEx.muscleGroup
+                                        ...normalizedPlanExercise,
+                                        muscleGroup: normalizedPlanExercise.muscleGroup || sessionEx.muscleGroup
                                     };
                                 }
                             }
@@ -336,7 +355,7 @@ const App = () => {
                             .map((p, i) => {
                                 hasChanges = true;
                                 return {
-                                    ...p,
+                                    ...normalizeExerciseMetrics(p),
                                     id: `ex-new-${i}-${Date.now()}`,
                                     completed: false,
                                     weight: p.weight || 0
@@ -443,7 +462,7 @@ const App = () => {
                     date: new Date().toISOString(),
                     title: plan.title,
                     exercises: plan.exercises.map((ex, i) => ({
-                        ...ex,
+                        ...normalizeExerciseMetrics(ex),
                         id: `ex-${i}-${Date.now()}`,
                         weight: 0,
                         completed: false
@@ -521,7 +540,7 @@ const App = () => {
                                 title: plan.title,
                                 date: date.toISOString(),
                                 exercises: plan.exercises.map((ex, i) => ({
-                                    ...ex,
+                                    ...normalizeExerciseMetrics(ex),
                                     id: `ex-${i}-${Date.now()}`,
                                     weight: ex.weight || 0,
                                     completed: true

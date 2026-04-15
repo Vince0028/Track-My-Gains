@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { ChevronLeft, ChevronRight, TrendingUp, Filter, X, Menu, ChevronDown, Search, AlertCircle } from 'lucide-react';
-import { getMuscleGroup } from '../../constants';
+import { getMuscleGroup, isDurationExercise } from '../../constants';
 
 const HistoryPage = ({ sessions, weeklyPlan }) => {
     const [currentPage, setCurrentPage] = useState(0);
@@ -500,6 +500,7 @@ const HistoryPage = ({ sessions, weeklyPlan }) => {
                                 const completionRate = Math.round(
                                     (exercise.timesCompleted / exercise.count) * 100
                                 );
+                                const metricLabel = isDurationExercise(exercise.name) ? 'Minutes Avg' : 'Reps Avg';
                                 return (
                                     <div key={idx} className="bg-[var(--bg-primary)] rounded-lg p-4 border border-[var(--border)]">
                                         <div className="flex items-center justify-between mb-3">
@@ -522,7 +523,7 @@ const HistoryPage = ({ sessions, weeklyPlan }) => {
                                                 </div>
                                             </div>
                                             <div className="bg-[var(--bg-secondary)] rounded p-3">
-                                                <div className="text-[var(--text-secondary)] text-xs mb-1 uppercase tracking-wide">Reps Avg</div>
+                                                <div className="text-[var(--text-secondary)] text-xs mb-1 uppercase tracking-wide">{metricLabel}</div>
                                                 <div className="font-semibold text-white text-lg">
                                                     {Math.round(exercise.completedReps / exercise.count)}
                                                 </div>
