@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Menu, X } from 'lucide-react';
+import { Menu, X, LogOut } from 'lucide-react';
 import iconDashboard from '../../assets/icon_dashboard.png';
 import iconCalendar from '../../assets/icon_calendar.png';
 import iconSchedule from '../../assets/icon_schedule.png';
@@ -13,7 +13,8 @@ const MobileMenu = ({
     onScreenChange,
     children,
     isOpen,
-    onClose
+    onClose,
+    onSignOut
 }) => {
 
     const menuItems = [
@@ -62,6 +63,21 @@ const MobileMenu = ({
                             </button>
                         ))}
                     </div>
+
+                    {onSignOut && (
+                        <div className="pt-3 border-t border-[var(--border)]">
+                            <button
+                                onClick={() => {
+                                    onSignOut();
+                                    if (onClose) onClose();
+                                }}
+                                className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border border-rose-500/20 bg-rose-500/8 text-rose-400 hover:bg-rose-500/15 transition-organic text-sm"
+                            >
+                                <LogOut size={16} />
+                                <span className="font-medium leading-none">Sign Out</span>
+                            </button>
+                        </div>
+                    )}
                 </div>
             )}
 

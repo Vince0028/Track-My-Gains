@@ -53,7 +53,7 @@ const Navigation = ({ currentScreen, onScreenChange, isDarkMode, toggleTheme, on
                 </button>
                 <button
                     onClick={onSignOut}
-                    className="p-2 text-[var(--text-secondary)] hover:text-rose-500 transition-organic"
+                    className="hidden md:inline-flex p-2 text-[var(--text-secondary)] hover:text-rose-500 transition-organic"
                     title="Sign Out"
                 >
                     <LogOut size={20} />

@@ -687,6 +687,7 @@ const App = () => {
                 }}
                 isOpen={isMobileMenuOpen}
                 onClose={() => setIsMobileMenuOpen(false)}
+                onSignOut={handleSignOut}
             >
                 <main className="max-w-7xl mx-auto pb-24 md:pb-8">
                     {renderScreen()}
